@@ -1,0 +1,95 @@
+<svg width="1200" height="260" viewBox="0 0 1200 260" xmlns="http://www.w3.org/2000/svg">
+  <defs>
+    <!-- Clinical palette -->
+    <!-- Background: near-black slate; Accent: muted teal; Text: clinical gray -->
+    <linearGradient id="bg" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0%" stop-color="#0b0f14"/>
+      <stop offset="100%" stop-color="#0a1017"/>
+    </linearGradient>
+
+    <!-- Faint grid -->
+    <pattern id="grid" width="28" height="28" patternUnits="userSpaceOnUse">
+      <path d="M 28 0 L 0 0 0 28" fill="none" stroke="#ffffff" stroke-opacity="0.045" stroke-width="1"/>
+    </pattern>
+
+    <!-- Softer vignette for depth (not neon) -->
+    <radialGradient id="vignette" cx="50%" cy="45%" r="75%">
+      <stop offset="0%" stop-color="#000000" stop-opacity="0"/>
+      <stop offset="100%" stop-color="#000000" stop-opacity="0.55"/>
+    </radialGradient>
+
+    <!-- Very subtle glow for pulse lines (clinical) -->
+    <filter id="softGlow" x="-40%" y="-40%" width="180%" height="180%">
+      <feGaussianBlur stdDeviation="1.4" result="b"/>
+      <feMerge>
+        <feMergeNode in="b"/>
+        <feMergeNode in="SourceGraphic"/>
+      </feMerge>
+    </filter>
+
+    <!-- Divider gradient -->
+    <linearGradient id="divider" x1="0" y1="0" x2="1" y2="0">
+      <stop offset="0%" stop-color="#7fdad1" stop-opacity="0"/>
+      <stop offset="50%" stop-color="#7fdad1" stop-opacity="0.30"/>
+      <stop offset="100%" stop-color="#7fdad1" stop-opacity="0"/>
+    </linearGradient>
+
+    <!-- Accent gradient for title -->
+    <linearGradient id="titleAccent" x1="0" y1="0" x2="1" y2="0">
+      <stop offset="0%" stop-color="#cfe7e5" stop-opacity="0.85"/>
+      <stop offset="50%" stop-color="#7fdad1" stop-opacity="0.95"/>
+      <stop offset="100%" stop-color="#cfe7e5" stop-opacity="0.85"/>
+    </linearGradient>
+  </defs>
+
+  <!-- Background -->
+  <rect width="1200" height="260" fill="url(#bg)"/>
+  <rect width="1200" height="260" fill="url(#grid)"/>
+  <rect width="1200" height="260" fill="url(#vignette)"/>
+
+  <!-- Subtle pulse lines (muted teal / gray) -->
+  <!-- Pulse line 1 -->
+  <path d="M -60 86 C 140 66, 290 104, 460 88 S 760 68, 940 96 S 1120 118, 1260 90"
+        fill="none" stroke="#7fdad1" stroke-opacity="0.18" stroke-width="1.8"
+        stroke-dasharray="10 22" filter="url(#softGlow)">
+    <animate attributeName="stroke-dashoffset" from="0" to="-260" dur="7.2s" repeatCount="indefinite"/>
+    <animate attributeName="stroke-opacity" values="0.10;0.20;0.12" dur="4.4s" repeatCount="indefinite"/>
+  </path>
+
+  <!-- Pulse line 2 -->
+  <path d="M -70 140 C 120 160, 330 118, 500 138 S 780 172, 960 142 S 1140 114, 1270 148"
+        fill="none" stroke="#cfd6dd" stroke-opacity="0.10" stroke-width="1.2"
+        stroke-dasharray="6 26">
+    <animate attributeName="stroke-dashoffset" from="0" to="-320" dur="9.5s" repeatCount="indefinite"/>
+    <animate attributeName="stroke-opacity" values="0.06;0.12;0.07" dur="5.7s" repeatCount="indefinite"/>
+  </path>
+
+  <!-- Pulse line 3 -->
+  <path d="M -50 198 C 160 184, 360 220, 550 204 S 820 176, 1010 210 S 1120 240, 1250 202"
+        fill="none" stroke="#7fdad1" stroke-opacity="0.10" stroke-width="1.0"
+        stroke-dasharray="3 24">
+    <animate attributeName="stroke-dashoffset" from="0" to="-240" dur="11s" repeatCount="indefinite"/>
+    <animate attributeName="stroke-opacity" values="0.05;0.11;0.06" dur="6.6s" repeatCount="indefinite"/>
+  </path>
+
+  <!-- Divider -->
+  <rect x="90" y="208" width="1020" height="2" fill="url(#divider)" opacity="0.85"/>
+
+  <!-- Title -->
+  <text x="600" y="112" text-anchor="middle" dominant-baseline="middle"
+        fill="url(#titleAccent)" font-size="42" font-family="Segoe UI, Arial, sans-serif" font-weight="700">
+    SOC Investigation — Detection Engineering
+  </text>
+
+  <!-- Subtitle (clinical gray, escape & correctly) -->
+  <text x="600" y="150" text-anchor="middle" dominant-baseline="middle"
+        fill="#a8b3bd" font-size="19" font-family="Segoe UI, Arial, sans-serif">
+    Microsoft Sentinel • MDE Advanced Hunting • KQL • MITRE ATT&amp;CK
+  </text>
+
+  <!-- Footer -->
+  <text x="600" y="230" text-anchor="middle" dominant-baseline="middle"
+        fill="#93a0ab" font-size="13" font-family="Segoe UI, Arial, sans-serif" opacity="0.9">
+    Attack lifecycle reconstruction • Analytics rules • Tuning • Coverage mapping
+  </text>
+</svg>
