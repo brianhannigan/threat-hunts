@@ -1,5 +1,5 @@
 <p align="center">
-  <img src="assets/soc-hero-banner.svg" alt="SOC Investigation – Detection Engineering" width="100%" />
+  <img src="soc-hero-banner.svg" alt="SOC Investigation – Detection Engineering" width="100%" />
 </p>
 
 ## 🏅 Professional Badges
