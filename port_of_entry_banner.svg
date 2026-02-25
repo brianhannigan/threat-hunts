@@ -1,0 +1,108 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" width="1200" height="300" viewBox="0 0 1200 300" role="img" aria-label="Threat Hunt: Port of Entry — Azuki Import/Export Trading Co., LTD.">
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0%" stop-color="#0B1220"/>
+      <stop offset="55%" stop-color="#0F1C33"/>
+      <stop offset="100%" stop-color="#0B1220"/>
+    </linearGradient>
+
+    <linearGradient id="accent" x1="0" y1="0" x2="1" y2="0">
+      <stop offset="0%" stop-color="#2D6BFF"/>
+      <stop offset="100%" stop-color="#4ED6C6"/>
+    </linearGradient>
+
+    <filter id="softShadow" x="-20%" y="-20%" width="140%" height="140%">
+      <feDropShadow dx="0" dy="10" stdDeviation="12" flood-color="#000000" flood-opacity="0.35"/>
+    </filter>
+
+    <style><![CDATA[
+      .mono { font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace; }
+      .sans { font-family: ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial, "Noto Sans", "Apple Color Emoji", "Segoe UI Emoji"; }
+      .muted { fill: #A9B7D0; }
+      .white { fill: #EAF1FF; }
+      .chipText { fill:#EAF1FF; font-size:12px; letter-spacing:0.2px; }
+      .h1 { font-size:40px; font-weight:800; letter-spacing:0.2px; }
+      .h2 { font-size:16px; font-weight:600; letter-spacing:0.2px; }
+      .kql { font-size:14px; fill:#D7E3FF; }
+      .kqlDim { font-size:14px; fill:#9FB2D6; }
+    ]]></style>
+  </defs>
+
+  <!-- Background -->
+  <rect x="0" y="0" width="1200" height="300" rx="22" fill="url(#bg)"/>
+
+  <!-- Subtle grid -->
+  <g opacity="0.08">
+    <path d="M0 60 H1200 M0 120 H1200 M0 180 H1200 M0 240 H1200" stroke="#B9C7E6" stroke-width="1"/>
+    <path d="M120 0 V300 M240 0 V300 M360 0 V300 M480 0 V300 M600 0 V300 M720 0 V300 M840 0 V300 M960 0 V300 M1080 0 V300" stroke="#B9C7E6" stroke-width="1"/>
+  </g>
+
+  <!-- Accent top bar -->
+  <rect x="0" y="0" width="1200" height="6" fill="url(#accent)"/>
+
+  <!-- Left brand block -->
+  <g transform="translate(44,44)">
+    <!-- Logo mark -->
+    <g>
+      <path d="M0 48 L30 0 L60 48 Z" fill="#EAF1FF" opacity="0.92"/>
+      <path d="M70 0 H118 C136 0 150 14 150 32 C150 50 136 64 118 64 H70 Z" fill="#EAF1FF" opacity="0.92"/>
+      <path d="M86 16 H118 C126 16 132 22 132 32 C132 42 126 48 118 48 H86 Z" fill="url(#accent)"/>
+    </g>
+
+    <text x="0" y="96" class="sans white" font-size="14" font-weight="700" opacity="0.95">AZUKI</text>
+    <text x="0" y="116" class="sans muted" font-size="12" font-weight="600" opacity="0.95">梓貿易株式会社 • Azuki Import/Export Trading Co., LTD.</text>
+
+    <!-- Title -->
+    <text x="0" y="168" class="sans white h1">Threat Hunt: Port of Entry</text>
+    <text x="0" y="194" class="sans muted h2">Virtual Machine Compromise • Initial Access Investigation</text>
+
+    <!-- Chips -->
+    <g transform="translate(0,214)">
+      <rect x="0" y="0" width="210" height="28" rx="14" fill="#142546" stroke="#2A3E6E" stroke-width="1"/>
+      <circle cx="16" cy="14" r="5" fill="#FF4D5A"/>
+      <text x="30" y="19" class="sans chipText" font-weight="700">INC2025-0011-019</text>
+
+      <rect x="222" y="0" width="156" height="28" rx="14" fill="#142546" stroke="#2A3E6E" stroke-width="1"/>
+      <circle cx="238" cy="14" r="5" fill="#FFB020"/>
+      <text x="252" y="19" class="sans chipText" font-weight="700">Severity 1</text>
+
+      <rect x="390" y="0" width="140" height="28" rx="14" fill="#142546" stroke="#2A3E6E" stroke-width="1"/>
+      <circle cx="406" cy="14" r="5" fill="#4ED6C6"/>
+      <text x="420" y="19" class="sans chipText" font-weight="700">MDE Logs</text>
+    </g>
+  </g>
+
+  <!-- Right KQL panel -->
+  <g transform="translate(700,44)" filter="url(#softShadow)">
+    <rect x="0" y="0" width="456" height="212" rx="18" fill="#0E1A33" stroke="#253A67" stroke-width="1.2"/>
+    <rect x="0" y="0" width="456" height="42" rx="18" fill="#0C1630"/>
+    <rect x="0" y="24" width="456" height="18" fill="#0C1630"/>
+
+    <!-- Header -->
+    <circle cx="22" cy="21" r="6" fill="#FF4D5A"/>
+    <circle cx="42" cy="21" r="6" fill="#FFB020"/>
+    <circle cx="62" cy="21" r="6" fill="#4ED6C6"/>
+    <text x="86" y="26" class="sans white" font-size="13" font-weight="700">MDE Advanced Hunting — Starting Point</text>
+
+    <!-- Content -->
+    <g transform="translate(22,64)">
+      <text x="0" y="0" class="mono kql"><tspan class="kqlDim">DeviceProcessEvents</tspan></text>
+      <text x="0" y="24" class="mono kql">| where DeviceName == "azuki-sl"</text>
+      <text x="0" y="48" class="mono kql">| where Timestamp between (datetime(2025-11-19) .. datetime(2025-11-20))</text>
+
+      <rect x="0" y="76" width="412" height="1" fill="#22365F" opacity="0.9"/>
+
+      <text x="0" y="108" class="sans muted" font-size="12" font-weight="600">Investigation Questions</text>
+      <text x="0" y="132" class="sans white" font-size="13" font-weight="700">• Initial access method</text>
+      <text x="0" y="152" class="sans white" font-size="13" font-weight="700">• Compromised accounts</text>
+      <text x="0" y="172" class="sans white" font-size="13" font-weight="700">• Data stolen &amp; exfil method</text>
+    </g>
+  </g>
+
+  <!-- Footer line -->
+  <rect x="44" y="274" width="1112" height="1" fill="#20345E" opacity="0.9"/>
+  <text x="44" y="292" class="sans muted" font-size="11" font-weight="600">
+    Portfolio Artifact • SOC Challenge: Virtual Machine Compromise • “Azuki Import/Export” Case Series
+  </text>
+</svg>
