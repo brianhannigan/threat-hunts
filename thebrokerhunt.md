@@ -1,118 +1,318 @@
-# The Broker Hunt
+# 🕵️ Threat Hunt Report: The Broker
 
-## Executive Summary
+![Status](https://img.shields.io/badge/Status-Completed-brightgreen)
+![Platform](https://img.shields.io/badge/Platform-Microsoft%20Sentinel%20%2B%20MDE-blue)
+![Skill](https://img.shields.io/badge/Focus-Threat%20Hunting%20%7C%20IR%20%7C%20KQL-purple)
 
-This hunt investigated signs of credential access and lateral movement behavior associated with a financially motivated intrusion set informally tracked as **"The Broker"**. The activity pattern focused on suspicious authentication events, use of remote administration utilities, and potential staging behavior on high-value endpoints.
+> **What happened?**  
+> A fake “resume” file was opened. It secretly started an attack.  
+> The attacker stole credentials, moved to other computers, accessed payroll data, and tried to erase evidence.
 
-The investigation identified anomalous logon patterns and execution of dual-use tooling from non-standard hosts. While no confirmed data exfiltration was validated during this hunt window, several high-confidence detection and hardening opportunities were identified.
+---
 
-## Hunt Metadata
+## 📌 Quick Answers (CTF Flags / Findings)
 
-- **Hunt ID:** TH-2026-001
-- **Status:** Completed
-- **Date Range Reviewed (UTC):** 2026-02-01 to 2026-02-14
-- **Environment Scope:** Corporate endpoints, domain controllers, and VPN authentication logs
-- **Analyst:** Threat Hunting Team
+### Section 1 — Initial Access
+- **Initial Payload:** `daniel_richardson_cv.pdf.exe`
+- **Payload SHA256:** `48b97fd91946e81e3e7742b3554585360551551cbf9398e1f34f4bc4eac3a6b5`
+- **Launch Method (Parent Process):** `explorer.exe`
+- **Spawned Windows Process:** `notepad.exe`
+- **Full Command Line:** `notepad.exe ""`
 
-## Hypothesis
+### Section 2 — Command & Control + Staging
+- **C2 Domain:** `cdn.cloud-endpoint.net`
+- **C2 Process:** `daniel_richardson_cv.pdf.exe`
+- **Staging Domain:** `sync.cloud-endpoint.net`
 
-If an adversary is using brokered credentials to establish footholds and move laterally, then we should observe one or more of the following:
+### Credential Access
+- **Registry Hives Targeted:** `SAM, SYSTEM`
+- **Local Staging Path:** `C:\Users\Public`
+- **Execution Identity:** `sophie.turner`
 
-- Unusual successful authentications for privileged or sensitive accounts.
-- Logons from atypical geographies, devices, or time windows.
-- Execution of administrative tools from hosts that do not normally perform administrative functions.
-- Authentication or process patterns that precede remote service creation or suspicious scheduled tasks.
+### Discovery
+- **User Context Command:** `whoami.exe`
+- **Network Shares Command:** `net.exe view`
+- **Privileged Group Queried:** `administrators`
 
-## Scope & Data Sources
+### Remote Tool Persistence (AnyDesk)
+- **Remote Tool Installed:** `AnyDesk`
+- **AnyDesk SHA256:** `f42b635d93720d1624c74121b83794d706d4d064bee027650698025703d20532`
+- **Download Method:** `certutil.exe`
+- **Config File Accessed:** `C:\Users\Sophie.Turner\AppData\Roaming\AnyDesk\system.conf`
+- **Unattended Password Set:** `intrud3r!`
+- **Deployed On Hosts:** `as-pc1, as-pc2, as-srv`
 
-The following telemetry was reviewed:
+### Lateral Movement
+- **Failed Remote Tools Tried:** `wmic.exe, PsExec.exe`
+- **Target Host (Failed Attempts):** `AS-PC2`
+- **Successful Pivot Tool:** `mstsc.exe`
+- **Movement Path:** `as-pc1 > as-pc2 > as-srv`
+- **Compromised Account Used:** `david.mitchell`
+- **Account Activation Parameter:** `active:yes`
+- **Activation Performed By:** `david.mitchell`
 
-- Identity provider sign-in logs (interactive and non-interactive).
-- VPN access logs.
-- Windows Security Event Logs (logon, account usage, privilege events).
-- Endpoint process execution telemetry (EDR).
-- DNS query telemetry for suspect hosts.
+### Scheduled Task Persistence
+- **Task Name:** `MicrosoftEdgeUpdateCheck`
+- **Renamed Binary:** `RuntimeBroker.exe`
+- **Persistence SHA256:** `48b97fd91946e81e3e7742b3554585360551551cbf9398e1f34f4bc4eac3a6b5`
+- **Backdoor Account:** `svc_backup`
 
-## Methodology
+### Data Access / Staging
+- **Sensitive Document:** `BACS_Payments_Dec2025.ods`
+- **Editing Artifact:** `.~lock.BACS_Payments_Dec2025.ods#`
+- **Access Origin Host:** `as-pc2`
+- **Archive Filename:** `Shares.7z`
+- **Archive SHA256:** `6886c0a2e59792e69df94d2cf6ae62c2364fda50a23ab44317548895020ab048`
 
-1. Established normal authentication baseline for high-value accounts over a 30-day pre-hunt window.
-2. Flagged deviations in source IP, ASN, country, device fingerprint, and logon hour.
-3. Correlated suspicious authentications with endpoint activity within ±60 minutes.
-4. Enumerated execution of dual-use binaries (e.g., remote execution, credential dumping-adjacent, and discovery tooling).
-5. Mapped observed behavior to ATT&CK techniques for triage prioritization.
+### Anti-Forensics & Memory (Final)
+- **Logs Cleared:** `System, Application`
+- **Reflective Loading ActionType:** `ClrUnbackedModuleLoaded`
+- **Memory Tool:** `SharpChrome`
+- **Host Process (Injected Into):** `notepad.exe`
 
-## Key Findings
+---
 
-### Finding 1: Atypical Authentication Sequences
+## 🧠 The Story (Simple Version)
 
-Multiple successful authentications were observed for two privileged accounts from previously unseen source infrastructure, followed by rapid logons to internal systems.
+Think of this like a burglar story:
 
-- Pattern: VPN success → domain logon within short interval.
-- Risk: Potential use of valid stolen credentials.
-- Confidence: Medium (requires additional user validation and network context).
+1. **They tricked someone** into opening a fake resume file.
+2. **They called home** (C2) to get instructions.
+3. **They stole passwords** from the computer.
+4. **They moved to other computers** using Remote Desktop.
+5. **They grabbed payroll data** from a file server.
+6. **They packed it into a zip-like archive** (`Shares.7z`).
+7. **They set up persistence** (AnyDesk + scheduled task + backdoor account).
+8. **They tried to hide** by clearing Windows logs.
+9. **We still caught them** because Defender/Sentinel kept strong telemetry.
 
-### Finding 2: Dual-Use Tool Execution on Non-Admin Workstation
+---
 
-A workstation outside the approved admin tier executed command-line activity consistent with reconnaissance and remote execution preparation.
+## 🗺️ Attack Flow Diagram
 
-- Pattern: Discovery commands + service control interactions.
-- Risk: Lateral movement staging.
-- Confidence: High (deviation from host role baseline).
+```mermaid
+flowchart LR
+A[User Opens Fake Resume<br>daniel_richardson_cv.pdf.exe] --> B[Initial Access<br>as-pc1]
+B --> C[C2 Traffic<br>cdn.cloud-endpoint.net]
+B --> D[Staging Domain Used<br>sync.cloud-endpoint.net]
 
-### Finding 3: Detection Gaps
+B --> E[Credential Access<br>reg save SAM + SYSTEM]
+E --> F[Staged Locally<br>C:\Users\Public]
 
-Current alerting did not trigger on the full sequence of suspicious behavior because detections were siloed by data source.
+B --> G[Memory Tool Loaded<br>SharpChrome]
+G --> H[Reflective Load<br>ClrUnbackedModuleLoaded]
+H --> I[Injected Into<br>notepad.exe]
 
-- Gap: Cross-source correlation for identity + endpoint + VPN events.
-- Gap: Weak anomaly thresholds for privileged account behavior outside business hours.
+I --> J[Lateral Movement<br>mstsc.exe]
+J --> K[as-pc2]
+K --> L[File Server Access<br>BACS_Payments_Dec2025.ods]
+L --> M[Archive Created<br>Shares.7z]
 
-## Detection Opportunities
+M --> N[Persistence Added<br>AnyDesk + Task + svc_backup]
+N --> O[Logs Cleared<br>System + Application]
+```
 
-- Create sequence-based detection for: atypical VPN success + privileged internal logon within 60 minutes.
-- Alert when administrative tooling runs on non-admin endpoints.
-- Track first-seen geography/device combinations for privileged users with risk scoring.
-- Add suppression logic for approved maintenance windows to reduce false positives.
+---
 
-## Recommendations
+## 🧰 Tooling Used
 
-### Immediate (0–7 Days)
+- Microsoft Sentinel / Log Analytics
+- Microsoft Defender for Endpoint (MDE)
+- KQL (Kusto Query Language)
+- MITRE ATT&CK mapping
+- Timeline + correlation across hosts
 
-- Force credential reset and session revocation for accounts implicated in anomalous patterns.
-- Validate suspicious login events with account owners and management chain.
-- Isolate and triage workstation identified in Finding 2.
+---
 
-### Short Term (1–4 Weeks)
+## ⏱️ Investigation Scope (Time Window)
 
-- Implement multi-source behavioral correlation use cases in SIEM.
-- Enforce conditional access controls for privileged identities.
-- Restrict remote administration tool usage to approved management hosts.
+Most hunting was performed using:
 
-### Long Term (1–3 Months)
+```kusto
+let t0 = datetime(2026-01-15 03:40:00);
+let t1 = datetime(2026-01-15 07:30:00);
+```
 
-- Expand endpoint telemetry coverage to include script block and command-line auditing.
-- Mature UEBA baselines for privileged account normal behavior.
-- Conduct purple-team validation for brokered credential intrusion scenarios.
+---
 
-## MITRE ATT&CK Mapping (Candidate)
+## 🔎 KQL Hunt Queries
 
-- **T1078** – Valid Accounts
-- **T1021** – Remote Services
-- **T1087** – Account Discovery
-- **T1059** – Command and Scripting Interpreter
-- **T1046** – Network Service Discovery
+### 1) Find the initial payload + hash (process launch)
 
-## Appendix A: Example IOC/Behavior List
+```kusto
+let dev = "as-pc1";
+let t0 = datetime(2026-01-15 03:40:00);
+let t1 = datetime(2026-01-15 05:10:00);
+DeviceProcessEvents
+| where DeviceName == dev
+| where Timestamp between (t0 .. t1)
+| where FileName =~ "daniel_richardson_cv.pdf.exe"
+| project Timestamp, AccountName, FileName, ProcessCommandLine, InitiatingProcessFileName, InitiatingProcessCommandLine, SHA256
+| order by Timestamp asc
+```
 
-> Note: Replace placeholders below with validated indicators before operational sharing.
+### 2) Prove execution method (parent process)
 
-- Suspicious source IPs: `203.0.113.0/24` (placeholder)
-- Suspicious user agents/device IDs: `unknown-browser-fingerprint-*` (placeholder)
-- Potentially abused hosts: `WKSTN-23`, `SRV-APP-07` (example)
+```kusto
+let dev = "as-pc1";
+let t0 = datetime(2026-01-15 03:40:00);
+let t1 = datetime(2026-01-15 05:10:00);
+DeviceProcessEvents
+| where DeviceName == dev
+| where Timestamp between (t0 .. t1)
+| where FileName =~ "daniel_richardson_cv.pdf.exe"
+| project Timestamp, FileName, InitiatingProcessFileName, InitiatingProcessCommandLine
+| order by Timestamp asc
+```
 
-## Appendix B: Next Hunt Iteration
+### 3) C2 domain + initiating process
 
-For the next iteration, expand to:
+```kusto
+let dev = "as-pc1";
+let t0 = datetime(2026-01-15 03:40:00);
+let t1 = datetime(2026-01-15 05:10:00);
+DeviceNetworkEvents
+| where DeviceName == dev
+| where Timestamp between (t0 .. t1)
+| where RemoteUrl contains "cdn.cloud-endpoint.net"
+| where isnotempty(InitiatingProcessFileName)
+| project Timestamp, InitiatingProcessFileName, InitiatingProcessCommandLine, RemoteUrl, RemoteIP, RemotePort, Protocol
+| order by Timestamp asc
+```
 
-- Cloud control plane audit logs.
-- Email authentication anomalies (impossible travel + mailbox rule changes).
-- Longer dwell-time timeline reconstruction for impacted identities.
+### 4) Staging infrastructure (download domain in command line)
+
+```kusto
+let dev = "as-pc2";
+let t0 = datetime(2026-01-15 03:40:00);
+let t1 = datetime(2026-01-15 07:30:00);
+DeviceProcessEvents
+| where DeviceName == dev
+| where Timestamp between (t0 .. t1)
+| where ProcessCommandLine has "http"
+| where ProcessCommandLine has_any ("certutil", "bitsadmin", "invoke-webrequest", "curl", "wget")
+| project Timestamp, AccountName, FileName, ProcessCommandLine
+| order by Timestamp asc
+```
+
+### 5) Credential extraction registry hive exports
+
+```kusto
+let dev = "as-pc1";
+let t0 = datetime(2026-01-15 03:40:00);
+let t1 = datetime(2026-01-15 07:30:00);
+DeviceProcessEvents
+| where DeviceName == dev
+| where Timestamp between (t0 .. t1)
+| where FileName =~ "reg.exe"
+| where ProcessCommandLine has "save"
+| project Timestamp, AccountName, ProcessCommandLine, InitiatingProcessFileName
+| order by Timestamp asc
+```
+
+### 6) AnyDesk download method + password set
+
+```kusto
+let dev = "as-pc1";
+let anchor = datetime(2026-01-15 04:11:47.349);
+DeviceProcessEvents
+| where DeviceName == dev
+| where Timestamp between (anchor-5m .. anchor+5m)
+| where ProcessCommandLine has_any ("AnyDesk", "--set-password")
+| project Timestamp, AccountName, FileName, ProcessCommandLine, InitiatingProcessFileName, InitiatingProcessCommandLine
+| order by Timestamp asc
+```
+
+### 7) Lateral movement evidence (RDP)
+
+```kusto
+let dev = "as-pc2";
+let t0 = datetime(2026-01-15 03:40:00);
+let t1 = datetime(2026-01-15 07:30:00);
+DeviceProcessEvents
+| where DeviceName == dev
+| where Timestamp between (t0 .. t1)
+| where FileName =~ "mstsc.exe"
+| project Timestamp, AccountName, ProcessCommandLine
+| order by Timestamp asc
+```
+
+### 8) Data access: payroll doc + edit artifact proof
+
+```kusto
+let t0 = datetime(2026-01-15 03:40:00);
+let t1 = datetime(2026-01-15 07:30:00);
+DeviceFileEvents
+| where Timestamp between (t0 .. t1)
+| where FolderPath has @"\\AS-SRV\Payroll"
+| where FileName has "BACS_Payments_Dec2025"
+| project Timestamp, DeviceName, ActionType, FileName, FolderPath, InitiatingProcessFileName, InitiatingProcessAccountName
+| order by Timestamp asc
+```
+
+### 9) Exfil archive creation + hash
+
+```kusto
+let t0 = datetime(2026-01-15 03:40:00);
+let t1 = datetime(2026-01-15 07:30:00);
+DeviceFileEvents
+| where Timestamp between (t0 .. t1)
+| where FileName =~ "Shares.7z"
+| where ActionType == "FileCreated"
+| project Timestamp, DeviceName, FileName, FolderPath, SHA256, InitiatingProcessFileName, InitiatingProcessAccountName
+| order by Timestamp asc
+```
+
+### 10) Anti-forensics: log clearing
+
+```kusto
+let t0 = datetime(2026-01-15 03:40:00);
+let t1 = datetime(2026-01-15 07:30:00);
+DeviceProcessEvents
+| where Timestamp between (t0 .. t1)
+| where FileName =~ "wevtutil.exe"
+| where ProcessCommandLine has "cl"
+| project Timestamp, DeviceName, AccountName, ProcessCommandLine, InitiatingProcessFileName
+| order by Timestamp asc
+```
+
+### 11) Reflective loading + tool name (memory only)
+
+```kusto
+let t0 = datetime(2026-01-15 03:40:00);
+let t1 = datetime(2026-01-15 07:30:00);
+DeviceEvents
+| where Timestamp between (t0 .. t1)
+| where DeviceName in ("as-pc1", "as-pc2", "as-srv")
+| where ActionType == "ClrUnbackedModuleLoaded"
+| extend AF = parse_json(AdditionalFields)
+| project Timestamp, DeviceName, ActionType, Module=tostring(AF.ModuleILPathOrName), InitiatingProcessFileName, InitiatingProcessCommandLine
+| order by Timestamp asc
+```
+
+---
+
+## 🧩 Repo Structure (Suggested)
+
+```text
+.
+├── README.md
+├── queries/
+│   ├── 01_initial_access.kql
+│   ├── 02_c2_and_staging.kql
+│   ├── 03_credential_access.kql
+│   ├── 04_discovery.kql
+│   ├── 05_persistence_anydesk.kql
+│   ├── 06_lateral_movement.kql
+│   ├── 07_scheduled_task_persistence.kql
+│   ├── 08_data_access_and_archive.kql
+│   └── 09_anti_forensics_memory.kql
+└── assets/
+    └── attack_flow_diagram.png  (optional later)
+```
+
+## 👤 Author:  Brian Hannigan
+---
+Cybersecurity Engineer | Threat Hunting | SIEM | Incident Response
+
+GitHub: https://github.com/brianhannigan
