@@ -1,4 +1,6 @@
-# Threat Hunts
+<p align="center">
+  <img src="soc-hero-banner.svg" alt="SOC Investigation – Detection Engineering" width="100%" />
+</p>
 
 A professional repository for documenting structured threat hunting investigations, findings, and defensive recommendations.
 
