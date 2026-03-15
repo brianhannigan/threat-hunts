@@ -21,7 +21,8 @@ This repository is designed to:
 │   └── soc-hero-banner.svg
 ├── hunts/
 │   ├── azuki-port-of-entry.md
-│   └── thebrokerhunt.md
+│   ├── thebrokerhunt.md
+│   └── thebuyerhunt.md
 ├── prompts/
 ├── templates/
 ├── README.md
@@ -54,6 +55,7 @@ Each threat hunt report should include:
 
 - [Azuki: Port of Entry](./hunts/azuki-port-of-entry.md) — Full attack lifecycle reconstruction from RDP initial access through attempted lateral movement.
 - [The Broker Hunt](./hunts/thebrokerhunt.md) — Initial documented hunt report in this repository.
+- [The Buyer Hunt](./hunts/thebuyerhunt.md) — Ransomware staging and impact-preparation investigation.
 
 ## Contribution Guidelines
 
