@@ -1,4 +1,6 @@
-# Threat Hunts
+<p align="center">
+  <img src="soc-hero-banner.svg" alt="SOC Investigation – Detection Engineering" width="100%" />
+</p>
 
 A professional repository for documenting structured threat hunting investigations, findings, and defensive recommendations.
 
@@ -16,6 +18,7 @@ This repository is designed to:
 ```text
 .
 ├── README.md
+├── azuki-port-of-entry.md
 └── thebrokerhunt.md
 ```
 
@@ -44,6 +47,7 @@ Each threat hunt report should include:
 
 ## Current Hunts
 
+- [Azuki: Port of Entry](./azuki-port-of-entry.md) — Full attack lifecycle reconstruction from RDP initial access through attempted lateral movement.
 - [The Broker Hunt](./thebrokerhunt.md) — Initial documented hunt report in this repository.
 
 ## Contribution Guidelines
