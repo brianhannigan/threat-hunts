@@ -1,3 +1,7 @@
+<p align="center">
+  <img src="../assets/the_buyer_banner.svg" alt="SOC Investigation – The Buyer" width="100%" />
+</p>
+
 # Threat Hunt Report: The Buyer
 ![Status](https://img.shields.io/badge/Status-Completed-brightgreen)
 ![Platform](https://img.shields.io/badge/Platform-Microsoft%20Sentinel%20%2B%20MDE-blue)
@@ -150,6 +154,7 @@ That linkage should be explicit in the documentation.
 ## Detection & Hunt Queries
 
 ### Defender Tampering
+
 ```kusto
 DeviceProcessEvents
 | where DeviceName == "AS-PC2"
@@ -163,174 +168,156 @@ DeviceProcessEvents
 | order by Timestamp asc
 ```
 
-Discovery / Scanner Execution
+### Discovery / Scanner Execution
+
+```kusto
 DeviceProcessEvents
 | where DeviceName == "AS-PC2"
 | where ProcessCommandLine has_any ("AdvancedIpScanner", "scan.exe", "whoami", "net view")
 | project Timestamp, DeviceName, AccountName, FileName, ProcessCommandLine, InitiatingProcessFileName
 | order by Timestamp asc
-LSASS Access
+```
+
+### LSASS Access
+
+```kusto
 DeviceEvents
 | where DeviceName == "AS-PC2"
 | where ActionType has_any ("ReadLsassMemory", "CredentialTheft", "ProcessAccessed")
 | project Timestamp, DeviceName, ActionType, InitiatingProcessFileName, InitiatingProcessCommandLine, AccountName
 | order by Timestamp asc
-Shadow Copy Deletion
+```
+
+### Shadow Copy Deletion
+
+```kusto
 DeviceProcessEvents
 | where DeviceName == "AS-PC2"
 | where ProcessCommandLine has_any ("vssadmin", "delete shadows", "wmic shadowcopy delete")
 | project Timestamp, DeviceName, AccountName, FileName, ProcessCommandLine, InitiatingProcessFileName
 | order by Timestamp asc
-Account Reuse / Lateral Movement Validation
+```
+
+### Account Reuse / Lateral Movement Validation
+
+```kusto
 DeviceLogonEvents
 | where AccountName =~ "David.Mitchell"
 | project Timestamp, DeviceName, AccountName, LogonType, RemoteIP, InitiatingProcessFileName
 | order by Timestamp asc
-Data Gaps
-Missing Telemetry	Investigative Impact
-Network flow logs	Unable to fully confirm lateral movement path and east-west spread
-Entra ID / Azure AD sign-in telemetry	Cannot fully validate cloud-side access reuse or sign-in anomalies
-Email telemetry	Cannot confirm whether a fresh phishing or lure event occurred
-Full cross-host timeline	Limits definitive blast-radius reconstruction
-Recommended Remediation
-Immediate Containment
+```
 
-Disable compromised account: David.Mitchell
+## Data Gaps
 
-Isolate endpoint: AS-PC2
+| Missing Telemetry | Investigative Impact |
+|---|---|
+| Network flow logs | Unable to fully confirm lateral movement path and east-west spread |
+| Entra ID / Azure AD sign-in telemetry | Cannot fully validate cloud-side access reuse or sign-in anomalies |
+| Email telemetry | Cannot confirm whether a fresh phishing or lure event occurred |
+| Full cross-host timeline | Limits definitive blast-radius reconstruction |
 
-Re-enable and enforce Defender protections
+---
 
-Reset all potentially exposed credentials
+## Recommended Remediation
 
-Hunt for activity on peer systems and servers
+### Immediate Containment
 
-Review whether persistence from The Broker remained active
+- Disable compromised account: `David.Mitchell`
+- Isolate endpoint: `AS-PC2`
+- Re-enable and enforce Defender protections
+- Reset all potentially exposed credentials
+- Hunt for activity on peer systems and servers
+- Review whether persistence from **The Broker** remained active
+- Validate whether Akira artifacts executed or only staged
 
-Validate whether Akira artifacts executed or only staged
+### Detection Engineering Improvements
 
-Detection Engineering Improvements
+- Create detections for `Set-MpPreference` abuse
+- Create detections for `DisableAntiSpyware`
+- Create detections for shadow copy deletion
+- Create detections for suspicious scanner execution from user workstations
 
-create detections for Set-MpPreference abuse
 
-create detections for DisableAntiSpyware
+### Logging Improvements
 
-create detections for shadow copy deletion
+- Ensure complete Defender Advanced Hunting coverage
+- Expand Entra ID / Azure AD logging
+- Add east-west network visibility
+- Preserve case notes and IOC handoff between related hunts
 
-create detections for suspicious scanner execution from user workstations
+---
 
-correlate post-compromise account reuse with prior known intrusion accounts
+## Final Assessment
 
-Logging Improvements
-
-ensure complete Defender Advanced Hunting coverage
-
-expand Entra ID / Azure AD logging
-
-add east-west network visibility
-
-preserve case notes and IOC handoff between related hunts
-
-Final Assessment
-
-The intrusion on AS-PC2 is best assessed as a human-operated ransomware operation in pre-encryption / impact-preparation stage.
+The intrusion on `AS-PC2` is best assessed as a human-operated ransomware operation in a pre-encryption, impact-preparation stage.
 
 Observed phases map to:
 
-Re-entry using previously staged access
+- Re-entry using previously staged access
+- Discovery
+- Credential access
+- Defense evasion
+- Impact preparation
 
-Discovery
-
-Credential Access
-
-Defense Evasion
-
-Impact Preparation
-
-This hunt should explicitly be treated as the ransomware continuation of The Broker, not as an isolated incident.
+This hunt should explicitly be treated as the ransomware continuation of **The Broker**, not as an isolated incident.
 
 Immediate containment and enterprise-wide scoping are required.
 
-Broker Quick Reference (Carry-Forward Notes)
+---
 
-Use this section for fast correlation while working The Buyer.
+## Broker Quick Reference (Carry-Forward Notes)
 
-Initial Access / Payload
+Use this section for fast correlation while working **The Buyer**.
 
-Fake resume payload: daniel_richardson_cv.pdf.exe
+### Initial Access / Payload
 
-Payload SHA256: 48b97fd91946e81e3e7742b3554585360551551cbf9398e1f34f4bc4eac3a6b5
+- Fake resume payload: `daniel_richardson_cv.pdf.exe`
+- Payload SHA256: `48b97fd91946e81e3e7742b3554585360551551cbf9398e1f34f4bc4eac3a6b5`
+- Parent process: `explorer.exe`
+- Decoy process: `notepad.exe`
 
-Parent process: explorer.exe
+### C2 / Staging Infrastructure
 
-Decoy process: notepad.exe
+- C2 domain: `cdn.cloud-endpoint.net`
+- Staging domain: `sync.cloud-endpoint.net`
 
-C2 / Staging Infrastructure
+### Credential Access / Local Staging
 
-C2 domain: cdn.cloud-endpoint.net
+- Registry hives targeted: `SAM`, `SYSTEM`
+- Local staging path: `C:\Users\Public`
+- Execution identity seen earlier: `sophie.turner`
 
-Staging domain: sync.cloud-endpoint.net
+### Persistence / Remote Access
 
-Credential Access / Local Staging
+- Remote tool installed: `AnyDesk`
+- AnyDesk SHA256: `f42b635d93720d1624c74121b83794d706d4d064bee027650698025703d20532`
+- AnyDesk unattended password: `intrud3r!`
+- Scheduled task: `MicrosoftEdgeUpdateCheck`
+- Renamed binary: `RuntimeBroker.exe`
+- Backdoor account: `svc_backup`
 
-Registry hives targeted: SAM, SYSTEM
+### Lateral Movement Notes
 
-Local staging path: C:\Users\Public
+- Failed remote tools: `wmic.exe`, `PsExec.exe`
+- Successful movement tool: `mstsc.exe`
+- Movement path: `as-pc1 > as-pc2 > as-srv`
+- Compromised account used: `david.mitchell`
+- Account activation parameter: `active:yes`
 
-Execution identity seen earlier: sophie.turner
+### Data Access / Collection
 
-Persistence / Remote Access
+- Sensitive file: `BACS_Payments_Dec2025.ods`
+- Editing artifact: `.~lock.BACS_Payments_Dec2025.ods#`
+- Archive created: `Shares.7z`
+- Archive SHA256: `6886c0a2e59792e69df94d2cf6ae62c2364fda50a23ab44317548895020ab048`
 
-Remote tool installed: AnyDesk
+### Anti-Forensics / Memory
 
-AnyDesk SHA256: f42b635d93720d1624c74121b83794d706d4d064bee027650698025703d20532
+- Logs cleared: `System`, `Application`
+- Memory-only action type: `ClrUnbackedModuleLoaded`
+- Tool observed: `SharpChrome`
+- Injected process: `notepad.exe`
 
-AnyDesk unattended password: intrud3r!
+### Why This Matters for The Buyer
 
-Scheduled task: MicrosoftEdgeUpdateCheck
-
-Renamed binary: RuntimeBroker.exe
-
-Backdoor account: svc_backup
-
-Lateral Movement Notes
-
-Failed remote tools: wmic.exe, PsExec.exe
-
-Successful movement tool: mstsc.exe
-
-Movement path: as-pc1 > as-pc2 > as-srv
-
-Compromised account used: david.mitchell
-
-Account activation parameter: active:yes
-
-Data Access / Collection
-
-Sensitive file: BACS_Payments_Dec2025.ods
-
-Editing artifact: .~lock.BACS_Payments_Dec2025.ods#
-
-Archive created: Shares.7z
-
-Archive SHA256: 6886c0a2e59792e69df94d2cf6ae62c2364fda50a23ab44317548895020ab048
-
-Anti-Forensics / Memory
-
-Logs cleared: System, Application
-
-Memory-only action type: ClrUnbackedModuleLoaded
-
-Tool observed: SharpChrome
-
-Injected process: notepad.exe
-
-Why This Matters for The Buyer
-
-These Broker notes explain how the attacker likely retained the access and host familiarity needed to return later and perform ransomware staging on AS-PC2.
-
-
-A couple of specific edits in your current page are worth making even if you do nothing else: the title block should say this is a **continuation of The Broker**, and the final assessment should explicitly say the actor **returned using pre-staged access** rather than reading like a standalone host-only incident. :contentReference[oaicite:2]{index=2}
-
-If you want, I can also turn this into a **clean GitHub-ready version with your preferred repo style**—badges, section anchors, and a tighter portfolio-grade layout.
-::contentReference[oaicite:3]{index=3}
+These Broker notes explain how the attacker likely retained the access and host familiarity needed to return later and perform ransomware staging on `AS-PC2`.
