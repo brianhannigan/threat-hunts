@@ -1,0 +1,51 @@
+<svg width="1600" height="420" viewBox="0 0 1600 420" fill="none" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="The Buyer threat hunt banner">
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="1600" y2="420" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#0B132B"/>
+      <stop offset="0.5" stop-color="#1C2541"/>
+      <stop offset="1" stop-color="#3A506B"/>
+    </linearGradient>
+    <linearGradient id="accent" x1="1100" y1="40" x2="1500" y2="360" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#5BC0BE"/>
+      <stop offset="1" stop-color="#6FFFE9"/>
+    </linearGradient>
+    <filter id="glow" x="0" y="0" width="200%" height="200%" filterUnits="userSpaceOnUse" color-interpolation-filters="sRGB">
+      <feGaussianBlur stdDeviation="6" result="blur"/>
+      <feMerge>
+        <feMergeNode in="blur"/>
+        <feMergeNode in="SourceGraphic"/>
+      </feMerge>
+    </filter>
+  </defs>
+
+  <rect width="1600" height="420" fill="url(#bg)"/>
+
+  <g opacity="0.2">
+    <path d="M0 360C160 320 280 390 420 350C560 310 700 380 840 340C980 300 1160 370 1320 330C1460 296 1540 318 1600 305V420H0V360Z" fill="#6FFFE9"/>
+    <path d="M0 390C160 352 320 412 500 366C690 318 860 390 1040 350C1220 310 1390 350 1600 326V420H0V390Z" fill="#5BC0BE"/>
+  </g>
+
+  <g opacity="0.25" stroke="#A7FFF3" stroke-width="1">
+    <path d="M90 80H760"/>
+    <path d="M140 130H860"/>
+    <path d="M40 180H710"/>
+    <path d="M220 230H930"/>
+    <path d="M120 280H780"/>
+  </g>
+
+  <g transform="translate(1110 70)">
+    <rect x="0" y="0" width="360" height="250" rx="22" fill="#0F1B36" stroke="url(#accent)" stroke-width="2"/>
+    <rect x="28" y="34" width="130" height="130" rx="18" fill="#1F3A5F"/>
+    <path d="M56 75H130M56 103H130M56 131H104" stroke="#6FFFE9" stroke-width="10" stroke-linecap="round"/>
+    <circle cx="248" cy="106" r="46" fill="#133058" stroke="#6FFFE9" stroke-width="3"/>
+    <path d="M248 80V112L269 126" stroke="#A7FFF3" stroke-width="7" stroke-linecap="round" stroke-linejoin="round"/>
+    <rect x="188" y="182" width="140" height="32" rx="14" fill="#5BC0BE"/>
+    <text x="258" y="203" text-anchor="middle" font-family="'Segoe UI', Arial, sans-serif" font-size="16" font-weight="700" fill="#0B132B">HUNT ACTIVE</text>
+  </g>
+
+  <g filter="url(#glow)">
+    <text x="92" y="165" fill="#E8FFFC" font-family="'Segoe UI', Arial, sans-serif" font-size="58" font-weight="700">Threat Hunt Report</text>
+    <text x="92" y="248" fill="#6FFFE9" font-family="'Segoe UI', Arial, sans-serif" font-size="94" font-weight="800">THE BUYER</text>
+    <text x="94" y="302" fill="#C4FFF6" font-family="'Segoe UI', Arial, sans-serif" font-size="27" font-weight="500">Ransomware Staging • Credential Theft • Recovery Inhibition</text>
+  </g>
+</svg>
