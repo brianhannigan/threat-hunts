@@ -1,5 +1,5 @@
 <p align="center">
-  <img src="the_broker_banner.svg" alt="SOC Investigation – The Broker" width="100%" />
+  <img src="../assets/the_broker_banner.svg" alt="SOC Investigation – The Broker" width="100%" />
 </p>
 
 # 🕵️ Threat Hunt Report: The Broker
