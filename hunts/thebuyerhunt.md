@@ -1,165 +1,336 @@
-<p align="center">
-  <img src="../assets/the_buyer_banner.svg" alt="SOC Investigation – The Buyer" width="100%" />
-</p>
-
-# 🛒 Threat Hunt Report: The Buyer
-
+# Threat Hunt Report: The Buyer
 ![Status](https://img.shields.io/badge/Status-Completed-brightgreen)
 ![Platform](https://img.shields.io/badge/Platform-Microsoft%20Sentinel%20%2B%20MDE-blue)
-![Focus](https://img.shields.io/badge/Focus-Ransomware%20Intrusion%20Reconstruction-purple)
+![Focus](https://img.shields.io/badge/Focus-Akira%20Ransomware%20%7C%20Impact%20Reconstruction-purple)
 
 > **What happened?**  
-> This hunt identified a high-confidence, hands-on-keyboard ransomware intrusion on `AS-PC2`.  
-> The attacker performed discovery, credential theft, defense evasion, and recovery-destruction behavior consistent with pre-encryption staging.
+> Following the initial compromise investigated in **The Broker**, a ransomware affiliate returned to the environment using **pre-staged access** and deployed **Akira ransomware** across the network.  
+> This hunt works **backwards from impact**, starting from Defender tampering and recovery-destruction activity on `AS-PC2`, then reconstructs the attack chain across related systems and prior intrusion artifacts.
 
 ---
 
-## 📌 Quick Answers (CTF Flags / Findings)
+## Hunt Context
+
+**Difficulty:** Advanced
+
+This investigation is a continuation of **The Broker**. The earlier intrusion established access, persistence, and lateral movement pathways. In **The Buyer**, the threat actor returns and transitions from intrusion and staging to **ransomware execution preparation and impact**.
+
+This hunt is harder than The Broker because it requires:
+
+- working backwards from impact
+- tracking activity across multiple hosts
+- correlating infrastructure and access paths from the first investigation
+- using previously identified IOCs and account activity to validate follow-on attacker behavior
+
+---
+
+## Quick Answers (CTF Flags / Findings)
 
 ### Confirmed Flag
 - **FLAG-004 (Impact):** Shadow copy deletion
 - **Technique:** Recovery inhibition / ransomware preparation
 - **Host:** `AS-PC2`
 - **Account:** `David.Mitchell`
-- **Timestamp:** `4:03:49 PM`
+- **Timestamp:** `2026-01-27 16:03:49`
 
 ### Related Indicators from the Same Attack Chain
-- **FLAG-001 (Defense Evasion):** Defender disabled (PowerShell tampering)
+- **FLAG-001 (Defense Evasion):** Defender disabled via PowerShell tampering
 - **FLAG-002 (Discovery):** Advanced IP Scanner execution
 - **FLAG-003 (Credential Access):** LSASS memory access
 
 ---
 
-## 🎯 Executive Summary
+## Executive Summary
 
-The investigation confirms a coordinated ransomware kill chain on `AS-PC2` under user context `David.Mitchell`. Activity progressed from host discovery and credential theft to direct impairment of recovery capabilities through shadow copy deletion.
+The investigation confirms a **high-confidence, hands-on-keyboard ransomware intrusion** centered on `AS-PC2` under the user context `David.Mitchell`.
 
-This sequence strongly matches human-operated ransomware playbooks and indicates imminent encryption risk at the time of detection.
+Observed activity shows a clear transition from attacker-controlled exploration and credential access to ransomware-enablement actions, including:
+
+- network discovery
+- process discovery
+- LSASS memory access
+- Microsoft Defender tampering
+- shadow copy deletion
+
+This sequence is consistent with **Akira ransomware pre-encryption staging** and indicates the actor returned with already established knowledge and access from the earlier **Broker** intrusion.
 
 - **Compromise Likelihood:** **HIGH**
 - **Risk Level:** **CRITICAL**
-- **Business Impact:** Loss of recovery options and elevated probability of broader domain compromise
+- **Business Impact:** Loss of recovery options, increased likelihood of encryption, and elevated risk of multi-host compromise
 
 ---
 
-## 🧠 Hunt Hypothesis
+## Threat Hypothesis
 
-If an adversary is staging ransomware on an endpoint, telemetry should show a sequence of:
+If a ransomware affiliate has returned to the environment using access established during **The Broker**, telemetry should show:
 
-1. Discovery activity
-2. Credential theft behavior
-3. Security control tampering
-4. Recovery inhibition (e.g., shadow copy deletion)
+1. re-use of previously compromised accounts or paths
+2. discovery activity on already reached hosts
+3. credential access or privilege validation
+4. security-control tampering
+5. recovery inhibition and impact preparation
 
 The observed evidence validated this hypothesis.
 
 ---
 
-## 🔍 Scope & Data Sources
+## Scope & Data Sources
 
-### Investigated Asset
-- `AS-PC2` (Windows 10)
+### Investigated Assets
+- `AS-PC2` (primary impact host)
+- additional peer systems should be reviewed for related activity
 
 ### Primary User Context
 - `David.Mitchell`
 
 ### Data Sources Referenced
+- Microsoft Defender for Endpoint alert telemetry
 - Endpoint process telemetry
-- Defender behavior and tamper indicators
+- Defender tamper indicators
 - Credential access alerts
-- Hunt timeline reconstruction artifacts
+- Timeline reconstruction artifacts
+
+### Known Data Gaps
+- no confirmed network flow visibility in this report
+- no confirmed Entra ID sign-in trail included in this page
+- no confirmed mail telemetry included in this page
 
 ---
 
-## 🕒 Timeline of Confirmed Activity
+## Timeline of Confirmed Activity
 
 | Time | Event | Host | Account | Assessment |
 |---|---|---|---|---|
-| 1:29 PM | Suspicious `svchost` activity | AS-PC2 | David.Mitchell | Early compromise signal |
+| 1:29 PM | Suspicious `svchost.exe` / `wsync.exe` behavior | AS-PC2 | David.Mitchell | Early compromise / staging signal |
+| 3:17 PM | `powershell.exe` remote execution observed | AS-PC2 | David.Mitchell | Hands-on-keyboard activity |
+| 3:17 PM | `scan.exe` created | AS-PC2 | David.Mitchell | Tool staging |
 | 3:17 PM | Advanced IP Scanner executed | AS-PC2 | David.Mitchell | Internal discovery |
+| 3:22 PM | `wsync.exe` created | AS-PC2 | David.Mitchell | Additional staging / tooling |
+| 3:23 PM | PowerShell-based process discovery | AS-PC2 | David.Mitchell | Discovery |
 | 3:45 PM | LSASS memory access detected | AS-PC2 | David.Mitchell | Credential dumping |
+| 4:03 PM | `kill.bat` executed via `cmd.exe` | AS-PC2 | David.Mitchell | Attack preparation |
 | 4:03 PM | Defender protections disabled | AS-PC2 | David.Mitchell | Defense evasion |
-| 4:03 PM | Shadow copies deleted | AS-PC2 | David.Mitchell | Ransomware staging / impact prep |
+| 4:03 PM | `reg.exe` set `DisableAntiSpyware=1` | AS-PC2 | David.Mitchell | Defender tampering |
+| 4:03 PM | Volume shadow copies deleted | AS-PC2 | David.Mitchell | Impact preparation / recovery inhibition |
 
 ---
 
-## 🧾 Indicator Matrix
+## Indicator Matrix
 
 | Flag | Tactic | Indicator | System | Notes |
 |---|---|---|---|---|
-| FLAG-001 | Defense Evasion | Defender disabled | AS-PC2 | PowerShell tampering |
+| FLAG-001 | Defense Evasion | `Set-MpPreference` abuse | AS-PC2 | Real-time, behavior, and IOAV protections disabled |
 | FLAG-002 | Discovery | Advanced IP Scanner | AS-PC2 | Network reconnaissance |
 | FLAG-003 | Credential Access | LSASS memory read | AS-PC2 | Credential theft |
-| FLAG-004 | Impact | Shadow copy deletion | AS-PC2 | Recovery inhibition |
+| FLAG-004 | Impact | Shadow copy deletion | AS-PC2 | Recovery inhibition prior to ransomware |
 
 ---
 
-## 💥 Systems Impacted
+## Systems Impacted
 
 | System | Type | Owner | Suspicious Activity |
 |---|---|---|---|
-| AS-PC2 | Windows 10 | David.Mitchell | Defender tampering, network scanning, credential dumping, shadow copy deletion |
+| AS-PC2 | Windows 10 | David.Mitchell | Discovery, credential access, Defender tampering, shadow copy deletion |
 
 ---
 
-## 🧪 Detection & Hunt Queries
+## Investigation Notes
 
-### Lateral Movement Validation
-```kusto
-DeviceLogonEvents
-| where AccountName == "David.Mitchell"
-| project TimeGenerated, DeviceName, LogonType
-| order by TimeGenerated asc
-```
+This hunt should be documented as a **follow-on ransomware phase** rather than a standalone compromise. The earlier attacker activity from **The Broker** established the access and movement patterns that make the later activity in **The Buyer** more understandable.
 
-### Suspicious PowerShell (Encoded Command Pattern)
+Key analytic point:
+
+- **The Broker** explains **how the attacker got in and moved around**
+- **The Buyer** explains **how the attacker returned and prepared to detonate ransomware**
+
+That linkage should be explicit in the documentation.
+
+---
+
+## Detection & Hunt Queries
+
+### Defender Tampering
 ```kusto
 DeviceProcessEvents
-| where FileName == "powershell.exe"
-| where ProcessCommandLine contains "-enc"
+| where DeviceName == "AS-PC2"
+| where FileName in~ ("powershell.exe","cmd.exe","reg.exe")
+| where ProcessCommandLine contains "Set-MpPreference"
+   or ProcessCommandLine contains "DisableAntiSpyware"
+   or ProcessCommandLine contains "DisableRealtimeMonitoring"
+   or ProcessCommandLine contains "DisableBehaviorMonitoring"
+   or ProcessCommandLine contains "DisableIOAVProtection"
+| project Timestamp, DeviceName, AccountName, FileName, ProcessCommandLine, InitiatingProcessFileName
+| order by Timestamp asc
 ```
 
----
+Discovery / Scanner Execution
+DeviceProcessEvents
+| where DeviceName == "AS-PC2"
+| where ProcessCommandLine has_any ("AdvancedIpScanner", "scan.exe", "whoami", "net view")
+| project Timestamp, DeviceName, AccountName, FileName, ProcessCommandLine, InitiatingProcessFileName
+| order by Timestamp asc
+LSASS Access
+DeviceEvents
+| where DeviceName == "AS-PC2"
+| where ActionType has_any ("ReadLsassMemory", "CredentialTheft", "ProcessAccessed")
+| project Timestamp, DeviceName, ActionType, InitiatingProcessFileName, InitiatingProcessCommandLine, AccountName
+| order by Timestamp asc
+Shadow Copy Deletion
+DeviceProcessEvents
+| where DeviceName == "AS-PC2"
+| where ProcessCommandLine has_any ("vssadmin", "delete shadows", "wmic shadowcopy delete")
+| project Timestamp, DeviceName, AccountName, FileName, ProcessCommandLine, InitiatingProcessFileName
+| order by Timestamp asc
+Account Reuse / Lateral Movement Validation
+DeviceLogonEvents
+| where AccountName =~ "David.Mitchell"
+| project Timestamp, DeviceName, AccountName, LogonType, RemoteIP, InitiatingProcessFileName
+| order by Timestamp asc
+Data Gaps
+Missing Telemetry	Investigative Impact
+Network flow logs	Unable to fully confirm lateral movement path and east-west spread
+Entra ID / Azure AD sign-in telemetry	Cannot fully validate cloud-side access reuse or sign-in anomalies
+Email telemetry	Cannot confirm whether a fresh phishing or lure event occurred
+Full cross-host timeline	Limits definitive blast-radius reconstruction
+Recommended Remediation
+Immediate Containment
 
-## ⚠️ Data Gaps
+Disable compromised account: David.Mitchell
 
-| Missing Telemetry | Investigative Impact |
-|---|---|
-| Network flow logs | Unable to fully confirm lateral movement path |
-| Azure AD sign-in telemetry | Initial access vector remains unconfirmed |
-| Email telemetry | Phishing delivery chain cannot be validated |
+Isolate endpoint: AS-PC2
 
----
+Re-enable and enforce Defender protections
 
-## 🛡 Recommended Remediation
+Reset all potentially exposed credentials
 
-### Immediate Containment
-1. Disable compromised account: `David.Mitchell`
-2. Isolate endpoint: `AS-PC2`
-3. Restore and lock Defender protection settings
-4. Reset all potentially exposed domain credentials
-5. Run targeted lateral movement hunts across peer systems
+Hunt for activity on peer systems and servers
 
-### Detection Engineering Improvements
-- Create analytic detections for:
-  - `Set-MpPreference` abuse
-  - `DisableAntiSpyware` behavior
-  - Shadow copy deletion commands
-- Expand mandatory telemetry collection:
-  - Defender Advanced Hunting completeness
-  - Azure AD Identity Protection logs
-  - East-west network flow visibility
+Review whether persistence from The Broker remained active
 
----
+Validate whether Akira artifacts executed or only staged
 
-## 🧭 Final Assessment
+Detection Engineering Improvements
 
-The intrusion on `AS-PC2` is best assessed as a **human-operated ransomware operation in pre-encryption stage**.
+create detections for Set-MpPreference abuse
+
+create detections for DisableAntiSpyware
+
+create detections for shadow copy deletion
+
+create detections for suspicious scanner execution from user workstations
+
+correlate post-compromise account reuse with prior known intrusion accounts
+
+Logging Improvements
+
+ensure complete Defender Advanced Hunting coverage
+
+expand Entra ID / Azure AD logging
+
+add east-west network visibility
+
+preserve case notes and IOC handoff between related hunts
+
+Final Assessment
+
+The intrusion on AS-PC2 is best assessed as a human-operated ransomware operation in pre-encryption / impact-preparation stage.
 
 Observed phases map to:
-1. **Discovery**
-2. **Credential Access**
-3. **Defense Evasion**
-4. **Impact Preparation**
 
-Immediate containment and enterprise-wide scoping are required to reduce probability of follow-on encryption and lateral spread.
+Re-entry using previously staged access
+
+Discovery
+
+Credential Access
+
+Defense Evasion
+
+Impact Preparation
+
+This hunt should explicitly be treated as the ransomware continuation of The Broker, not as an isolated incident.
+
+Immediate containment and enterprise-wide scoping are required.
+
+Broker Quick Reference (Carry-Forward Notes)
+
+Use this section for fast correlation while working The Buyer.
+
+Initial Access / Payload
+
+Fake resume payload: daniel_richardson_cv.pdf.exe
+
+Payload SHA256: 48b97fd91946e81e3e7742b3554585360551551cbf9398e1f34f4bc4eac3a6b5
+
+Parent process: explorer.exe
+
+Decoy process: notepad.exe
+
+C2 / Staging Infrastructure
+
+C2 domain: cdn.cloud-endpoint.net
+
+Staging domain: sync.cloud-endpoint.net
+
+Credential Access / Local Staging
+
+Registry hives targeted: SAM, SYSTEM
+
+Local staging path: C:\Users\Public
+
+Execution identity seen earlier: sophie.turner
+
+Persistence / Remote Access
+
+Remote tool installed: AnyDesk
+
+AnyDesk SHA256: f42b635d93720d1624c74121b83794d706d4d064bee027650698025703d20532
+
+AnyDesk unattended password: intrud3r!
+
+Scheduled task: MicrosoftEdgeUpdateCheck
+
+Renamed binary: RuntimeBroker.exe
+
+Backdoor account: svc_backup
+
+Lateral Movement Notes
+
+Failed remote tools: wmic.exe, PsExec.exe
+
+Successful movement tool: mstsc.exe
+
+Movement path: as-pc1 > as-pc2 > as-srv
+
+Compromised account used: david.mitchell
+
+Account activation parameter: active:yes
+
+Data Access / Collection
+
+Sensitive file: BACS_Payments_Dec2025.ods
+
+Editing artifact: .~lock.BACS_Payments_Dec2025.ods#
+
+Archive created: Shares.7z
+
+Archive SHA256: 6886c0a2e59792e69df94d2cf6ae62c2364fda50a23ab44317548895020ab048
+
+Anti-Forensics / Memory
+
+Logs cleared: System, Application
+
+Memory-only action type: ClrUnbackedModuleLoaded
+
+Tool observed: SharpChrome
+
+Injected process: notepad.exe
+
+Why This Matters for The Buyer
+
+These Broker notes explain how the attacker likely retained the access and host familiarity needed to return later and perform ransomware staging on AS-PC2.
+
+
+A couple of specific edits in your current page are worth making even if you do nothing else: the title block should say this is a **continuation of The Broker**, and the final assessment should explicitly say the actor **returned using pre-staged access** rather than reading like a standalone host-only incident. :contentReference[oaicite:2]{index=2}
+
+If you want, I can also turn this into a **clean GitHub-ready version with your preferred repo style**—badges, section anchors, and a tighter portfolio-grade layout.
+::contentReference[oaicite:3]{index=3}
