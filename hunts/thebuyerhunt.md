@@ -549,3 +549,378 @@ This linkage allowed the **ransomware phase** to be reconstructed despite missin
 ---
 
 *Investigation Status: In Progress*
+
+
+
+# SOC Investigation Case Study – The Buyer
+
+## 1. Investigation Summary
+
+**Investigation Name:** The Buyer  
+**Platform:** Microsoft Defender for Endpoint  
+**Related Hunt:** The Broker  
+**Threat Type:** Human-operated ransomware  
+**Ransomware Family:** Akira  
+**Primary Impact Host:** `AS-PC2`  
+**Compromised Account:** `David.Mitchell`
+
+### Executive Summary
+The Buyer investigation focused on reconstructing a human-operated ransomware intrusion culminating in Akira ransomware deployment activity on `AS-PC2`. This hunt built on infrastructure, access patterns, and attacker tradecraft previously identified in **The Broker**, and worked backward from impact indicators to identify the attacker’s staging domains, tooling, discovery activity, credential access behavior, and defense evasion actions.
+
+The investigation confirmed that the threat actor used remote access and administrative tooling, performed internal reconnaissance, accessed LSASS memory, tampered with Microsoft Defender protections, and executed destructive actions consistent with ransomware pre-encryption preparation, including shadow copy deletion. Confirmed attacker-controlled infrastructure included `sync.cloud-endpoint.net` for payload delivery and `cdn.cloud-endpoint.net` for staging/C2-related activity, resolving to `172.67.174.46` and `104.21.30.237`.
+
+Although the investigation successfully reconstructed major portions of the attack chain, several telemetry gaps limited full end-to-end validation, particularly the absence of complete network flow visibility, incomplete Advanced Hunting telemetry, lack of Entra ID sign-in correlation, and no mail telemetry to assess earlier delivery or access vectors.
+
+---
+
+## 2. What We Did
+
+The following steps summarize the investigation process used during The Buyer hunt.
+
+### Step 1 – Established Hunt Scope
+We defined the objective as reconstructing the ransomware deployment phase associated with Akira activity, with emphasis on:
+- attacker infrastructure
+- confirmed tooling
+- affected systems
+- account usage
+- pre-impact and impact behaviors
+- relationship to artifacts previously identified in **The Broker**
+
+### Step 2 – Started from Impact on AS-PC2
+We pivoted first from the impact host `AS-PC2`, focusing on behaviors commonly associated with ransomware execution:
+- Defender tampering
+- destructive recovery inhibition
+- suspicious batch/script execution
+- payload execution artifacts
+- evidence of process and system discovery
+
+This backward-from-impact approach was necessary because ransomware telemetry often becomes clearest near execution and defense evasion stages.
+
+### Step 3 – Correlated Activity with Known User Context
+We associated suspicious activity with the compromised account `David.Mitchell` and used that account context to determine whether the attacker actions were interactive, staged, or likely operator-driven rather than commodity malware alone.
+
+### Step 4 – Identified and Validated Attacker Tooling
+We confirmed attacker use of the following tools and binaries:
+- `AnyDesk`
+- `Advanced IP Scanner`
+- `scan.exe`
+- `PowerShell`
+- `wsync.exe`
+- `kill.bat`
+
+These tools were reviewed in the context of likely ransomware operator objectives:
+- remote access
+- host and network enumeration
+- credential access
+- security control impairment
+- payload staging and execution
+
+### Step 5 – Investigated Infrastructure Reuse
+We cross-referenced infrastructure from **The Broker** and validated reuse of the `cloud-endpoint.net` cluster:
+- `sync.cloud-endpoint.net`
+- `cdn.cloud-endpoint.net`
+
+This was a key pivot because direct hunting inside some Defender tables was incomplete or unavailable.
+
+### Step 6 – Reconstructed Host-Level Behaviors
+We documented the following confirmed attacker behaviors:
+- network discovery
+- process discovery
+- LSASS memory access
+- Defender tampering
+- shadow copy deletion
+
+These actions strongly aligned with late-stage ransomware operations and helped distinguish this intrusion from lower-fidelity suspicious activity.
+
+### Step 7 – Distinguished Confirmed Findings from Gaps
+We separated:
+- what was directly observed
+- what was inferred from related evidence
+- what could not be confirmed because of telemetry limitations
+
+This was important to keep the report publishable, defensible, and professional.
+
+---
+
+## 3. What Worked
+
+The following investigative methods produced useful results.
+
+### Successful Investigation Techniques
+
+| Technique | Result | Why It Worked |
+|---|---|---|
+| Starting from the impact host (`AS-PC2`) | Helped anchor the investigation in confirmed ransomware-related activity | Impact-stage behaviors were the highest-confidence evidence available |
+| Working backward from Defender tampering and shadow copy deletion | Helped identify pre-encryption preparation activity | These are strong, high-signal ransomware behaviors |
+| Correlating with prior hunt findings from **The Broker** | Confirmed infrastructure reuse and improved confidence | The actor reused related infrastructure, enabling cross-hunt validation |
+| Tool-based analysis of binaries and utilities | Helped reconstruct attacker objectives | The toolset clearly aligned to discovery, access, and execution phases |
+| Domain-based infrastructure pivoting | Confirmed staging and payload delivery infrastructure | Direct telemetry gaps were partially overcome by IOC reuse and domain analysis |
+| Behavior clustering rather than relying on a single alert | Produced a stronger narrative of intrusion activity | Multiple lower-level actions combined into a coherent ransomware sequence |
+
+### Why These Techniques Were Effective
+The most successful parts of the investigation came from combining:
+1. high-confidence impact behaviors,
+2. cross-host/cross-hunt IOC correlation,
+3. attacker tradecraft analysis,
+4. and host-level evidence reconstruction.
+
+This allowed the investigation to move forward even when some telemetry sources were incomplete.
+
+---
+
+## 4. What Did Not Work
+
+Several investigative paths produced limited or no value.
+
+### Failed or Limited Pivots
+
+| Pivot / Technique | Outcome | Limitation |
+|---|---|---|
+| Direct hunting across incomplete Advanced Hunting tables | Inconclusive | Relevant records were missing or incomplete |
+| Network-flow-based validation of external communications | Could not be completed | Network flow logs were missing |
+| Entra ID sign-in correlation | Could not validate identity activity end-to-end | No sign-in correlation available |
+| Email-based initial access review | Could not assess email delivery or phishing vector | No mail telemetry present |
+| Some command-line process reconstruction | Partial only | Process telemetry did not fully preserve all investigative context |
+| Pure IOC searching without behavioral context | Low standalone value | Many findings required correlation with attack sequence to be meaningful |
+
+### Key Takeaway
+What did not work was not necessarily incorrect methodology; in most cases, the failure was due to **data absence**, not bad investigative logic.
+
+---
+
+## 5. Evidence That Confirmed Findings
+
+The following evidence supports the confirmed findings in this investigation.
+
+### Confirmed Evidence Table
+
+| Finding | Evidence Type | Confidence | Notes |
+|---|---|---|---|
+| Akira-related payload execution | Presence/use of `wsync.exe` | High | Consistent with known payload naming/activity in this case |
+| Defense evasion | Defender tampering activity | High | Strong ransomware precursor behavior |
+| Recovery inhibition | Shadow copy deletion | High | Common pre-encryption ransomware behavior |
+| Credential access attempt or capability | LSASS memory access | High | Strong indicator of credential theft or privilege preparation |
+| Internal reconnaissance | Advanced IP Scanner / `scan.exe` / discovery activity | High | Supports operator-driven intrusion |
+| Remote access capability | AnyDesk presence/use | High | Indicates potential remote interactive access |
+| Scripted attacker actions | `PowerShell` and `kill.bat` | High | Likely used for staging, control impairment, or execution support |
+| Payload infrastructure | `sync.cloud-endpoint.net` | High | Confirmed as malicious infrastructure in this investigation |
+| Staging/C2 infrastructure | `cdn.cloud-endpoint.net` | High | Confirmed as malicious staging/C2 infrastructure |
+| Related infrastructure resolution | `172.67.174.46`, `104.21.30.237` | High | Resolved IPs tied to confirmed malicious domain |
+
+### Confirmed vs Hypothesized
+**Confirmed findings** are those directly supported by infrastructure validation, observed tool usage, or clearly documented attacker actions.
+
+**Hypotheses** remain around:
+- exact initial access mechanism in this phase
+- full identity-provider correlation path
+- complete email involvement
+- full cross-host propagation scope beyond observed evidence
+
+---
+
+## 6. Infrastructure Identified
+
+### Confirmed Malicious Infrastructure
+
+| Type | Indicator | Status | Notes |
+|---|---|---|---|
+| Payload Domain | `sync.cloud-endpoint.net` | Confirmed | Used to host or deliver attacker tooling/payloads |
+| Staging / C2 Domain | `cdn.cloud-endpoint.net` | Confirmed | Used for staging or command-and-control-related activity |
+| Resolved IP | `172.67.174.46` | Confirmed | Associated with confirmed C2 infrastructure |
+| Resolved IP | `104.21.30.237` | Confirmed | Associated with confirmed C2 infrastructure |
+
+### Infrastructure Assessment
+The `cloud-endpoint.net` domain cluster appears central to this intrusion phase and should be treated as confirmed malicious infrastructure for:
+- blocking
+- retrospective searching
+- detection content
+- IOC enrichment
+- threat intel watchlisting
+
+---
+
+## 7. Attack Chain Reconstruction
+
+## Confirmed Attack Progression
+
+| Phase | Confirmed Activity | Evidence |
+|---|---|---|
+| Access / Session Establishment | Attacker had usable access under `David.Mitchell` context | Compromised account context |
+| Remote Operations | AnyDesk present/used | Confirmed attacker tool |
+| Internal Reconnaissance | Network and process discovery performed | Advanced IP Scanner, `scan.exe`, process discovery |
+| Credential Access | LSASS memory access observed | Confirmed credential access behavior |
+| Payload / Tool Staging | Malicious infrastructure used for staging/delivery | `sync.cloud-endpoint.net`, `cdn.cloud-endpoint.net` |
+| Defense Evasion | Defender tampering | Confirmed on impact path |
+| Destructive Preparation | Shadow copy deletion | Confirmed ransomware precursor behavior |
+| Payload Execution | `wsync.exe` associated with Akira activity | Confirmed payload indicator |
+| Final Impact | Ransomware activity centered on `AS-PC2` | Impact host confirmation |
+
+### Narrative Reconstruction
+The attacker appears to have returned to the environment after access and staging established during **The Broker**. In The Buyer phase, activity shifted decisively into ransomware preparation and execution. The actor used remote access tooling, performed internal discovery, accessed LSASS memory to facilitate credential or privilege expansion, staged tooling via attacker-controlled `cloud-endpoint.net` infrastructure, tampered with Defender protections, deleted shadow copies, and executed the ransomware payload on `AS-PC2`.
+
+### Hypotheses Still Under Review
+The following remain plausible but not fully confirmed:
+- whether AnyDesk was the primary interactive access path during the final phase
+- whether additional hosts were staged before `AS-PC2`
+- whether email or identity telemetry would have revealed an earlier supporting intrusion chain
+- whether additional living-off-the-land commands were used but not retained in telemetry
+
+---
+
+## 8. Telemetry Gaps Observed
+
+### Confirmed Telemetry Gaps
+
+| Gap | Impact on Investigation |
+|---|---|
+| Missing network flow logs | Prevented full validation of outbound/inbound communications and infrastructure contact patterns |
+| Incomplete Advanced Hunting telemetry | Limited host and process pivoting across the full attack chain |
+| No Entra ID sign-in correlation | Prevented identity-layer confirmation of account misuse and session flow |
+| No mail telemetry | Prevented validation of phishing, malicious attachments, or email-based intrusion support |
+
+### Operational Impact of These Gaps
+These gaps reduced the ability to:
+- prove exact ingress path
+- validate timing between user/account activity and infrastructure contact
+- confirm whether additional attacker-controlled mail artifacts existed
+- build a complete multi-host communication map
+- distinguish fully between hands-on-keyboard sessions and staged automation at every step
+
+---
+
+## 9. Lessons Learned
+
+### Investigation Lessons
+1. **Backward-from-impact investigations can be highly effective** when ransomware telemetry is strongest at the end of the attack chain.
+2. **Prior hunt context matters.** The relationship to **The Broker** materially improved confidence and reduced false pivots.
+3. **Behavioral clustering outperforms isolated IOC searching** in incomplete telemetry conditions.
+4. **Defense evasion and recovery-destruction behaviors remain high-value ransomware signals** and should trigger immediate escalation.
+5. **LSASS access in combination with discovery plus defense tampering should be treated as near-critical** in enterprise environments.
+6. **Lack of network, identity, and email telemetry significantly slows root-cause validation** even when endpoint evidence is strong.
+7. **Remote access tools in context matter.** Tools like AnyDesk may be legitimate in some environments, but in this case their usage must be evaluated against the larger attack sequence.
+
+---
+
+## 10. Detection Engineering Improvements
+
+### Recommended Detection Content
+
+| Detection Area | Recommendation | Priority |
+|---|---|---|
+| Defender tampering | Alert on service modification, disabling, policy tampering, or security control impairment attempts | High |
+| Shadow copy deletion | Alert on `vssadmin`, `wmic shadowcopy`, PowerShell, or scripted deletion activity | High |
+| LSASS access | Detect suspicious memory access to LSASS by non-standard tools/processes | High |
+| Discovery tooling | Detect use of Advanced IP Scanner, `scan.exe`, and unusual discovery commands in user context | High |
+| Suspicious remote access tools | Detect AnyDesk installation/execution in sensitive environments or unusual user/device combinations | High |
+| Malicious infrastructure contact | Block and alert on `sync.cloud-endpoint.net`, `cdn.cloud-endpoint.net`, and related indicators | High |
+| Batch/script-based security impairment | Detect suspicious execution of files such as `kill.bat` and PowerShell used for control impairment | High |
+| Ransomware staging sequences | Correlate discovery + LSASS access + Defender tampering + shadow deletion into a multi-stage analytic | Critical |
+
+### Detection Strategy Improvements
+The best improvement is not just more single alerts, but **correlated analytics** that identify ransomware progression. For example:
+
+- discovery tooling  
++ suspicious admin/remote access  
++ LSASS access  
++ Defender tampering  
++ shadow copy deletion  
+
+should produce a **critical incident chain**, not separate low-confidence detections.
+
+---
+
+## 11. Remaining Investigation Tasks
+
+### Open Investigation Items
+
+| Task | Status | Purpose |
+|---|---|---|
+| Validate full scope of affected hosts | Pending | Determine whether `AS-PC2` was the only impact host |
+| Review for additional use of compromised account | Pending | Determine breadth of `David.Mitchell` account misuse |
+| Search for additional infrastructure in the same cluster | Pending | Identify related attacker domains/IPs |
+| Reconstruct broader timeline from Broker to Buyer | Pending | Improve continuity between initial intrusion and ransomware phase |
+| Identify exact sequence of `kill.bat` activity | Pending | Determine whether it targeted protections, processes, or services |
+| Determine whether AnyDesk was persistent or temporary | Pending | Clarify attacker access method |
+| Validate whether shadow copy deletion occurred on other hosts | Pending | Assess pre-impact staging scope |
+| Expand hunt for `wsync.exe` across environment | Pending | Determine whether payload staging occurred elsewhere |
+
+### Hypotheses Requiring More Data
+The following questions remain open because of telemetry gaps:
+- Was the ransomware deployment limited to one host or broader in scope?
+- Did the actor leverage identity infrastructure outside endpoint visibility?
+- Was mail involved in the original or follow-on compromise chain?
+- Were there additional staging nodes or operator workstations not yet identified?
+
+---
+
+## 12. Recommended SOC Playbook Updates
+
+### Playbook Improvement Recommendations
+
+#### A. Ransomware Pre-Impact Triage Playbook
+Update the ransomware playbook to explicitly prioritize the following sequence:
+1. isolate impacted host
+2. check for Defender tampering
+3. check for shadow copy deletion
+4. search for LSASS access
+5. identify remote access tooling
+6. search for discovery tooling
+7. pivot on compromised account
+8. pivot on infrastructure/domain indicators
+
+#### B. Cross-Hunt Correlation Procedure
+Create a standard step requiring analysts to compare new hunts against:
+- prior domains
+- prior IPs
+- prior compromised accounts
+- prior remote access tools
+- prior batch/script names
+- prior payload naming patterns
+
+This was especially valuable in connecting The Buyer to The Broker.
+
+#### C. Telemetry Gap Escalation Procedure
+Add a formal escalation path when analysts discover missing:
+- network flow logs
+- identity sign-in telemetry
+- mail telemetry
+- incomplete endpoint records
+
+This ensures gaps are documented early and not discovered late in reporting.
+
+#### D. Ransomware Behavior Matrix
+Maintain an internal matrix of high-signal ransomware behaviors, including:
+- discovery
+- credential access
+- security control tampering
+- recovery destruction
+- payload staging
+- encryption/execution artifacts
+
+Analysts should map observed behaviors against this matrix during triage.
+
+#### E. IOC-to-Behavior Workflow
+Revise playbooks so analysts do not stop at IOC identification. Require them to answer:
+- what objective the tool supported
+- where in the attack chain it appeared
+- whether the behavior was preventative, preparatory, or impact-related
+- what other expected behaviors should also be searched
+
+---
+
+## Final Assessment
+
+### Confirmed Findings
+The Buyer investigation confirmed a ransomware deployment phase involving:
+- compromised use of `David.Mitchell`
+- malicious infrastructure at `sync.cloud-endpoint.net` and `cdn.cloud-endpoint.net`
+- attacker tooling including AnyDesk, Advanced IP Scanner, `scan.exe`, PowerShell, `wsync.exe`, and `kill.bat`
+- operator behaviors including discovery, LSASS access, Defender tampering, and shadow copy deletion
+- Akira ransomware-related activity centered on `AS-PC2`
+
+### Key Analytical Conclusion
+This was not an isolated malware event. The evidence supports a **human-operated ransomware intrusion** in which the attacker used staged access, performed internal reconnaissance, prepared the environment for impact, impaired defenses, and executed ransomware activity consistent with Akira operations.
+
+### Confidence Statement
+Confidence is **high** for the confirmed infrastructure, tooling, and late-stage attacker behaviors.  
+Confidence is **moderate** for parts of the broader timeline where supporting identity, mail, or network telemetry was unavailable.
