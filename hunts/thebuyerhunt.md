@@ -321,3 +321,231 @@ Use this section for fast correlation while working **The Buyer**.
 ### Why This Matters for The Buyer
 
 These Broker notes explain how the attacker likely retained the access and host familiarity needed to return later and perform ransomware staging on `AS-PC2`.
+
+
+
+
+# Infrastructure Investigation Checklist — *The Buyer*
+
+This section documents the investigation process used to identify attacker infrastructure associated with the **ransomware deployment phase** of the intrusion.
+
+The investigation required correlating information from multiple sources:
+
+- Microsoft Defender incident artifacts
+- Infrastructure identified during **The Broker**
+- External DNS resolution of attacker domains
+- Elimination of incorrect infrastructure hypotheses
+
+---
+
+# Q5 — Payload Download Domain
+
+## Objective
+
+Identify the domain used by the attacker to host or deliver malicious tooling.
+
+## Evidence Sources
+
+- Defender incident artifacts
+- **The Broker** investigation notes
+
+## Confirmed Indicator
+
+```
+sync.cloud-endpoint.net
+```
+
+## What Worked
+
+- Cross-referencing infrastructure reused from **The Broker**
+- Identifying the **cloud-endpoint.net infrastructure cluster**
+- Validating the domain against the Broker IOC list
+
+## What Did Not Work
+
+- Hunting Defender Advanced Hunting tables (telemetry not populated)
+- Searching incident process command lines
+
+## Notes
+
+This domain hosted malicious tooling used during the intrusion.
+
+---
+
+# Q6 — Ransomware Staging / C2 Domain
+
+## Objective
+
+Identify the infrastructure used by the attacker to stage or coordinate the ransomware deployment.
+
+## Confirmed Indicator
+
+```
+cdn.cloud-endpoint.net
+```
+
+## What Worked
+
+- Recognizing infrastructure reuse from **The Broker**
+- Identifying the second domain within the same attacker-controlled cluster
+
+## What Did Not Work
+
+- Searching incident telemetry tables
+- Extracting command-line network indicators from process artifacts
+
+## Notes
+
+Attackers commonly separate infrastructure roles.
+
+| Function | Domain |
+|--------|--------|
+| Payload Hosting | `sync.cloud-endpoint.net` |
+| C2 / Staging | `cdn.cloud-endpoint.net` |
+
+---
+
+# Q7 — Command-and-Control IP Addresses
+
+## Objective
+
+Determine the IP infrastructure supporting the C2 domain.
+
+## Method Used
+
+DNS resolution of the attacker domain.
+
+### Command Used
+
+```bash
+nslookup -type=A cdn.cloud-endpoint.net 1.1.1.1
+```
+
+## Confirmed IP Addresses
+
+```
+172.67.174.46
+104.21.30.237
+```
+
+## What Worked
+
+- External DNS resolution of the attacker domain
+
+## What Did Not Work
+
+- Attempting to extract IP addresses from Defender incident artifacts
+- Checking internal IP telemetry (only private addresses were present)
+
+## Notes
+
+The domain is protected by **Cloudflare**, which explains the presence of CDN edge IP addresses.
+
+---
+
+# Q8 — Remote Tool Relay Domain
+
+## Objective
+
+Identify the relay infrastructure used by the attacker’s remote access tooling.
+
+## Evidence From The Broker
+
+Remote tool installed during the earlier intrusion phase:
+
+```
+AnyDesk
+```
+
+However, the specific relay hostname used by the attacker session was **not exposed directly in the Defender incident artifacts**.
+
+---
+
+## Investigation Attempts
+
+The following domains were tested but rejected.
+
+| Attempted Domain | Result |
+|-----------------|--------|
+| relay.anydesk.com | ❌ Incorrect |
+| net.anydesk.com | ❌ Incorrect |
+| *.net.anydesk.com | ❌ Incorrect |
+| boot.net.anydesk.com | ❌ Incorrect |
+| boot-relays.net.anydesk.com | ❌ Incorrect |
+
+---
+
+## Observations
+
+- **AnyDesk was confirmed on the compromised host**
+- Incident artifacts did not expose the exact relay hostname
+- Defender telemetry tables were not populated for this hunt
+
+---
+
+## Current Status
+
+⚠️ **Unresolved**
+
+Further confirmation will likely require:
+
+- Additional infrastructure notes from **The Broker**
+- Additional IOC documentation
+- Network telemetry not available in this investigation environment
+
+---
+
+# Telemetry Limitations Observed
+
+Several Defender Advanced Hunting tables returned **no relevant data** during the investigation.
+
+| Table | Result |
+|------|--------|
+| DeviceNetworkEvents | Empty |
+| DeviceProcessEvents | Empty |
+| AlertInfo | Empty |
+| AlertEvidence | Empty |
+| CloudAppEvents | Empty |
+
+---
+
+# Investigation Impact
+
+This limitation prevented direct extraction of:
+
+- Network connections
+- Remote domains
+- Attacker infrastructure indicators from telemetry
+
+The investigation therefore relied on:
+
+- Artifact correlation
+- Previously identified IOCs
+- Infrastructure clustering
+
+---
+
+# Infrastructure Cluster Identified
+
+The attacker reused a small infrastructure cluster.
+
+| Purpose | Indicator |
+|-------|-----------|
+| Payload Hosting | `sync.cloud-endpoint.net` |
+| C2 / Staging | `cdn.cloud-endpoint.net` |
+| C2 IPs | `172.67.174.46`, `104.21.30.237` |
+
+---
+
+# Key Investigation Lesson
+
+**The Buyer investigation demonstrates an important threat hunting principle:**
+
+> When telemetry is limited, infrastructure correlation across related incidents  
+> (**The Broker → The Buyer**) can reveal attacker patterns and reused infrastructure.
+
+This linkage allowed the **ransomware phase** to be reconstructed despite missing network logs.
+
+---
+
+*Investigation Status: In Progress*
