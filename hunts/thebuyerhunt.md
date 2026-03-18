@@ -23,8 +23,6 @@ Confirmed evidence ties the operation to **Akira**, including the ransom portal,
 
 At this stage, the **full host impact scope is not completely confirmed from available evidence**. Based on currently provided evidence, **as-srv** is directly implicated in the intrusion. Additional affected hosts remain **not yet determined from available evidence**.
 
----
-
 ### Technical Analyst Summary
 
 The attacker reused prior access, likely from incomplete remediation after **The Broker**, and operated through **AnyDesk** associated with compromised user **David.Mitchell** and attacker IP **88.97.164.155**. Infrastructure associated with tool delivery and staging included **sync.cloud-endpoint.net** and **cdn.cloud-endpoint.net**, while **relay-0b975d23.net.anydesk.com** supported remote access operations.
@@ -316,3 +314,462 @@ DeviceNetworkEvents
 | where Timestamp between (SuspiciousTime - 5m .. SuspiciousTime + 5m)
 | project Timestamp, DeviceName, RemoteIP, ProcessCommandLine, InitiatingProcessCommandLine
 | distinct RemoteIP
+```
+
+### Why It Matters
+
+Reconnaissance is how attackers identify reachable systems, administrative opportunities, and likely targets for lateral movement and impact.
+
+---
+
+## Section 8 — Lateral Movement
+
+### Confirmed Findings
+
+| Item | Value |
+|---|---|
+| Lateral Movement Account | `as.srv.administrator` |
+
+### Additional Authentication Evidence
+
+- `1/27/2026 8:18:42.600 PM — as-srv — david.mitchell — lsass.exe`
+- `1/27/2026 8:18:42.601 PM — as-srv — david.mitchell — 10.1.0.183`
+- `1/27/2026 8:18:42.601 PM — as-srv — david.mitchell — 10.1.0.183`
+- `1/27/2026 10:07:13.811 PM — as-srv — as.srv.administrator — lsass.exe`
+- `1/27/2026 10:07:13.811 PM — as-srv — as.srv.administrator — 10.0.8.6`
+- `1/27/2026 10:07:15.618 PM — as-srv — as.srv.administrator — lsass.exe`
+- `1/27/2026 10:07:15.618 PM — as-srv — as.srv.administrator — svchost.exe — 10.0.8.6`
+
+### How the Attacker Progressed from David.Mitchell to as.srv.administrator
+
+#### Confirmed
+
+- **David.Mitchell** was the compromised user
+- LSASS-oriented activity occurred during the intrusion
+- Subsequent authentication activity on **as-srv** involved **as.srv.administrator**
+- The sequence shows progression from a user context to an administrative account context
+
+#### Inferred from Timing / Sequence
+
+- The attacker likely used credential-access activity to facilitate the pivot
+- The LSASS-related artifacts provide a plausible operational bridge between the two accounts
+- The appearance of **as.srv.administrator** later in the chain is consistent with successful privilege escalation or credentialed lateral movement
+
+#### Not Confirmed from Available Evidence
+
+- The exact method used to obtain or use **as.srv.administrator**
+- Whether credentials were dumped, replayed, reused, or otherwise acquired
+
+### Host Assessment from Current Evidence
+
+Based on the evidence currently provided:
+
+- **Confirmed involved host:** `as-srv`
+- **Likely recon / access-related internal IP targets:** `10.1.0.154`, `10.1.0.183`
+- **Related authentication source / system indicator:** `10.0.8.6`
+
+#### Important Scope Note
+
+These IPs show relevant interaction, but **they cannot be conclusively labeled as fully compromised hosts from the available evidence alone**. At this stage, the only host directly supported in the intrusion sequence as operationally involved is:
+
+- **`as-srv`**
+
+The broader set of affected hosts remains:
+
+- **Not yet determined from available evidence**
+
+### Why It Matters
+
+Lateral movement into an administrative account is the point at which a localized compromise becomes an enterprise-level incident.
+
+### Evidence / Query Used
+
+Authentication sequence above; no additional KQL was explicitly provided for this section.
+
+---
+
+## Section 9 — Tool Transfer
+
+### Confirmed Findings
+
+| Item | Value |
+|---|---|
+| Download Method | `bitsadmin.exe` |
+| Fallback Method | `Invoke-WebRequest` |
+
+### Analysis
+
+The attacker used native Windows transfer mechanisms to deliver tooling. **`bitsadmin.exe`** is a common living-off-the-land method, while **`Invoke-WebRequest`** provided a fallback mechanism if the primary transfer method was unsuitable or blocked.
+
+### Why It Matters
+
+Using native utilities reduces operational friction and can help attacker activity blend into legitimate administrative patterns unless those tools are tightly monitored.
+
+### Evidence / Query Used
+
+Not explicitly provided beyond the confirmed findings.
+
+---
+
+## Section 10 — Exfiltration
+
+### Confirmed Findings
+
+| Item | Value |
+|---|---|
+| Staging Tool | `st.exe` |
+| Staging Hash | `512a1f4ed9f512572608c729a2b89f44ea66a40433073aedcd914bd2d33b7015` |
+| Exfil Archive | `exfil_data.zip` |
+
+### Analysis
+
+The use of **`st.exe`** to produce **`exfil_data.zip`** indicates data staging prior to ransomware impact. This is consistent with double-extortion behavior, where data theft or theft preparation is used to amplify pressure during ransom negotiations.
+
+### Why It Matters
+
+Even where encryption is the most visible effect, exfiltration staging introduces confidentiality risk and should be handled as a potential data-breach element of the incident.
+
+### Evidence / Query Used
+
+Not explicitly provided beyond the confirmed findings.
+
+---
+
+## Section 11 — Ransomware Deployment
+
+### Confirmed Findings
+
+| Item | Value |
+|---|---|
+| Ransomware Filename | `updater` |
+| Ransomware Hash | `e609d070ee9f76934d73353be4ef7ff34b3ecc3a2d1e5d052140ed4cb9e4752b` |
+| Ransomware Staging | `powershell.exe` |
+| Recovery Prevention | `wmic shadowcopy delete` |
+| Ransom Note Origin | `updater.exe` |
+| Encryption Start | `22:18:33` |
+
+### Analysis
+
+The final impact stage involved operator-controlled ransomware launch. **`powershell.exe`** staged the ransomware identified as **`updater`**, and **`updater.exe`** was the process that dropped the ransom note. The command **`wmic shadowcopy delete`** indicates an effort to remove shadow copies and reduce recovery options before or during encryption.
+
+Encryption began at **22:18:33**, completing the attacker’s extortion cycle.
+
+### Why It Matters
+
+This phase confirms the attacker reached final objective execution: encrypting systems, impairing recovery, and initiating ransom pressure.
+
+### Evidence / Query Used
+
+Not explicitly provided beyond the confirmed findings.
+
+---
+
+## Section 12 — Anti-Forensics & Scope
+
+### Confirmed Findings
+
+| Item | Value |
+|---|---|
+| Cleanup Script | `clean.bat` |
+| Affected Hosts | Not yet determined from available evidence |
+
+### Analysis
+
+The batch file **`clean.bat`** indicates likely cleanup or anti-forensic activity. Its exact contents are not confirmed from available evidence, but its role in the attack chain suggests post-execution artifact removal or trace suppression.
+
+### Current Host Scope Assessment
+
+#### Confirmed from available evidence
+
+- **`as-srv`** is directly involved in the intrusion sequence
+
+#### Related but not fully confirmed as compromised
+
+- `10.1.0.154`
+- `10.1.0.183`
+- `10.0.8.6`
+
+#### Unresolved
+
+- Full list of impacted or encrypted hosts
+- Whether all internal IPs observed in recon/lateral activity were ultimately compromised
+- Whether additional servers or workstations were affected
+
+### Why It Matters
+
+Cleanup activity reduces forensic visibility and may hide the full extent of the intrusion. The unresolved host scope means containment and recovery would require further validation.
+
+---
+
+## MITRE ATT&CK Mapping
+
+| Tactic | Technique | Evidence |
+|---|---|---|
+| Initial Access | External Remote Services / Valid Accounts | AnyDesk, `David.Mitchell`, `88.97.164.155` |
+| Execution | PowerShell | `powershell.exe`, `Invoke-WebRequest` |
+| Execution | Windows Command Shell | `kill.bat`, `clean.bat`, `tasklist | findstr lsass` |
+| Persistence | Remote Access Software | AnyDesk |
+| Defense Evasion | Impair Defenses | `kill.bat`, `DisableAntiSpyware` |
+| Defense Evasion | Modify Registry | `DisableAntiSpyware` |
+| Credential Access | LSASS-related Credential Access | `tasklist | findstr lsass`, `\Device\NamedPipe\lsass` |
+| Discovery | Network Discovery / Share Discovery | `scan.exe`, SMB correlation to `10.1.0.154`, `10.1.0.183` |
+| Lateral Movement | Valid Accounts / Remote Services | `as.srv.administrator` |
+| Command and Control | Remote Access / Beaconing | AnyDesk, `wsync.exe` |
+| Ingress Tool Transfer | Ingress Tool Transfer | `bitsadmin.exe`, `Invoke-WebRequest` |
+| Collection | Archive Collected Data | `st.exe`, `exfil_data.zip` |
+| Exfiltration | Exfiltration Staging | `st.exe`, `exfil_data.zip` |
+| Impact | Data Encrypted for Impact | Akira, `.akira`, `updater` |
+| Impact | Inhibit System Recovery | `wmic shadowcopy delete` |
+
+---
+
+## Key IOCs / Artifacts
+
+### Domains
+
+| Type | Value |
+|---|---|
+| Negotiation Portal | `akiral2iz6a7qgd3ayp3l6yub7xx2uep76idk3u2kollpj5z3z636bad.onion` |
+| Payload Domain | `sync.cloud-endpoint.net` |
+| Ransomware Staging Domain | `cdn.cloud-endpoint.net` |
+| Remote Tool Relay Domain | `relay-0b975d23.net.anydesk.com` |
+
+### IP Addresses
+
+| Type | Value |
+|---|---|
+| C2 IP | `172.67.174.46` |
+| C2 IP | `104.21.30.237` |
+| Attacker IP | `88.97.164.155` |
+| Network Enumeration Target | `10.1.0.154` |
+| Network Enumeration Target | `10.1.0.183` |
+| Related Authentication Source / Host Indicator | `10.0.8.6` |
+
+### Hashes
+
+| Artifact | SHA256 |
+|---|---|
+| `kill.bat` | `0e7da57d92eaa6bda9d0bbc24b5f0827250aa42f295fd056ded50c6e3c3fb96c` |
+| Original `wsync.exe` | `66b876c52946f4aed47dd696d790972ff265b6f4451dab54245bc4ef1206d90b` |
+| Replacement `wsync.exe` | `0072ca0d0adc9a1b2e1625db4409f57fc32b5a09c414786bf08c4d8e6a073654` |
+| `scan.exe` | `26d5748ffe6bd95e3fee6ce184d388a1a681006dc23a0f08d53c083c593c193b` |
+| `st.exe` | `512a1f4ed9f512572608c729a2b89f44ea66a40433073aedcd914bd2d33b7015` |
+| `updater` | `e609d070ee9f76934d73353be4ef7ff34b3ecc3a2d1e5d052140ed4cb9e4752b` |
+
+### Filenames / Tools
+
+| Type | Value |
+|---|---|
+| Defense Evasion Script | `kill.bat` |
+| Primary Beacon | `wsync.exe` |
+| Recon Tool | `scan.exe` |
+| Exfiltration Staging Tool | `st.exe` |
+| Ransomware | `updater` |
+| Ransom Note Origin | `updater.exe` |
+| Cleanup Script | `clean.bat` |
+
+### Users / Accounts
+
+| Type | Value |
+|---|---|
+| Compromised User | `David.Mitchell` |
+| Lateral Movement Account | `as.srv.administrator` |
+
+### Paths / Commands / Values
+
+| Type | Value |
+|---|---|
+| Suspicious Execution Path | `C:\Users\Public\` |
+| Beacon Location | `C:\ProgramData\` |
+| Credential Hunt Command | `tasklist | findstr lsass` |
+| Credential Pipe | `\Device\NamedPipe\lsass` |
+| Scanner Execution | `/portable "C:/Users/david.mitchell/Downloads/" /lng en_us` |
+| Download Method | `bitsadmin.exe` |
+| Fallback Method | `Invoke-WebRequest` |
+| Recovery Prevention | `wmic shadowcopy delete` |
+| Registry Tampering | `DisableAntiSpyware` |
+| Exfil Archive | `exfil_data.zip` |
+| Encrypted Extension | `.akira` |
+
+---
+
+## Technical Narrative of the Intrusion
+
+The intrusion began as a continuation of the prior **The Broker** compromise. Rather than establishing a wholly new foothold, the attacker returned using **pre-staged access** already present in the environment. Remote access was associated with **AnyDesk**, suspicious path **`C:\Users\Public\`**, attacker IP **`88.97.164.155`**, and compromised user **David.Mitchell**.
+
+Once active, the attacker used supporting infrastructure including **`relay-0b975d23.net.anydesk.com`** for remote operations and **`sync.cloud-endpoint.net`** / **`cdn.cloud-endpoint.net`** for tool delivery and ransomware staging. Command-and-control capability was maintained through **`wsync.exe`** in **`C:\ProgramData\`**, with evidence that the beacon changed over time as shown by two distinct hashes.
+
+The attacker then impaired defensive visibility and prevention. The presence of **`kill.bat`** and the registry modification **`DisableAntiSpyware`** at **21:03:42** indicate the environment was deliberately prepared for more aggressive activity.
+
+Credential-focused behavior followed. The command **`tasklist | findstr lsass`** and the named pipe artifact **`\Device\NamedPipe\lsass`** indicate LSASS-oriented activity consistent with credential harvesting or credential-access preparation. While the exact theft mechanism is not directly confirmed, these artifacts matter because they align with what happened next.
+
+The attacker performed reconnaissance using **`scan.exe`**, executed with `/portable "C:/Users/david.mitchell/Downloads/" /lng en_us`. Network enumeration targets **`10.1.0.154`** and **`10.1.0.183`** were identified by correlating suspicious discovery-like process execution with SMB traffic over port 445.
+
+The intrusion then advanced from the compromised user **David.Mitchell** to the administrative account **as.srv.administrator**. The clearest evidence appears on **as-srv**, where earlier activity involved **david.mitchell**, and later events involved **as.srv.administrator** tied to **lsass.exe**, **svchost.exe**, and **10.0.8.6**. This sequence demonstrates an operational pivot from user-level access to administrative control, although the precise acquisition method for the administrative account remains unconfirmed.
+
+With higher-value access established, the attacker transferred additional tooling using **`bitsadmin.exe`** and **`Invoke-WebRequest`**. Data was then staged using **`st.exe`**, producing **`exfil_data.zip`**, indicating likely double-extortion preparation.
+
+Finally, ransomware deployment was staged via **`powershell.exe`** and carried out using **updater**, hash **`e609d070ee9f76934d73353be4ef7ff34b3ecc3a2d1e5d052140ed4cb9e4752b`**. Recovery was hindered using **`wmic shadowcopy delete`**, encryption began at **22:18:33**, and **updater.exe** dropped the ransom note. Post-impact cleanup or anti-forensics was associated with **clean.bat**.
+
+This attack chain is consistent with a structured ransomware intrusion:
+
+**pre-staged access → remote access reuse → tool transfer → defense evasion → credential access → reconnaissance → lateral movement → exfiltration → ransomware deployment**
+
+---
+
+## Detection Opportunities & Defensive Gaps
+
+### Detection Opportunities
+
+- Alert on unauthorized or rare **AnyDesk** usage
+- Detect process execution from **`C:\Users\Public\`**
+- Monitor **`bitsadmin.exe`** and **`Invoke-WebRequest`** for suspicious downloads
+- Alert on modification of **`DisableAntiSpyware`**
+- Flag **LSASS**-related commands and pipe artifacts
+- Detect suspicious portable tooling such as **`scan.exe`**
+- Correlate suspicious process activity with SMB traffic on port **445**
+- Alert on use of **`wmic shadowcopy delete`**
+- Monitor for unusual archive creation such as **`exfil_data.zip`**
+- Detect note-dropping or ransomware-associated processes such as **`updater.exe`**
+
+### Defensive Gaps
+
+- Prior intrusion access appears not to have been fully eradicated
+- Remote access tooling remained available for attacker reuse
+- Defense tampering occurred before impact
+- Credential-access activity progressed to an administrative pivot
+- Exfiltration staging occurred before final ransomware deployment
+- Full host scope remained unresolved during the investigation
+
+---
+
+## Lessons Learned
+
+1. **Eradication matters as much as initial containment.**  
+   The attacker’s return from a prior intrusion shows the risk of incomplete remediation.
+
+2. **Remote access software requires explicit governance.**  
+   Tools like AnyDesk can become persistence enablers if not tightly controlled.
+
+3. **Simple scripts can have major operational impact.**  
+   Files like **kill.bat** and **clean.bat** remain highly effective in real intrusions.
+
+4. **LSASS-oriented activity deserves immediate escalation.**  
+   Even seemingly minimal LSASS-focused commands can be precursor indicators of full administrative compromise.
+
+5. **Cross-correlation improves confidence.**  
+   The reconnaissance findings were materially strengthened by correlating process telemetry with SMB network telemetry.
+
+6. **Ransomware is often also a data-theft event.**  
+   The presence of **st.exe** and **exfil_data.zip** means encryption should not be treated as the only impact.
+
+---
+
+## Confidence / Limitations
+
+### Confirmed
+
+- Akira attribution
+- Negotiation portal, victim ID, encrypted extension
+- Infrastructure domains and listed IPs
+- AnyDesk involvement
+- `David.Mitchell` as compromised user
+- `C:\Users\Public\` as suspicious execution path
+- `wsync.exe` and both beacon hashes
+- `kill.bat` and its hash
+- Registry tampering of `DisableAntiSpyware`
+- LSASS-oriented command and named pipe artifact
+- `scan.exe`, its hash, and execution parameters
+- Network enumeration targets `10.1.0.154` and `10.1.0.183`
+- `as.srv.administrator` as lateral movement account
+- `bitsadmin.exe` and `Invoke-WebRequest` as transfer methods
+- `st.exe`, its hash, and `exfil_data.zip`
+- `updater`, its hash, ransomware staging via `powershell.exe`
+- `wmic shadowcopy delete`
+- `updater.exe` as ransom note origin
+- Encryption start time `22:18:33`
+- `clean.bat`
+- **`as-srv` as a directly involved host**
+
+### Inferred from Timing / Sequence
+
+- The attacker reused pre-staged access from **The Broker**
+- LSASS-related activity likely supported the transition from `David.Mitchell` to `as.srv.administrator`
+- Beacon replacement indicates an update or refresh in C2 capability
+- Exfiltration staging likely supported double-extortion objectives
+
+### Not Confirmed from Available Evidence
+
+- Exact acquisition method for `as.srv.administrator`
+- Exact contents or behaviors of `kill.bat` and `clean.bat`
+- Final outbound exfiltration destination
+- Whether `10.1.0.154`, `10.1.0.183`, or `10.0.8.6` were fully compromised versus observed in access / recon / auth telemetry
+- Full list of affected hosts
+
+---
+
+## Portfolio / Interview Talking Points
+
+This investigation demonstrates the ability to:
+
+- perform structured threat hunting across **Microsoft Sentinel**, **Log Analytics**, and **Defender telemetry**
+- distinguish **confirmed evidence** from **analytical inference**
+- reconstruct a complete ransomware intrusion chain
+- correlate process, logon, and network telemetry to validate attacker progression
+- analyze credential-access indicators and administrative pivoting
+- document findings in a portfolio-grade, SOC-ready DFIR format
+- communicate effectively to both technical and leadership audiences
+
+---
+
+## Conclusion
+
+The available evidence supports a clear assessment: **The Buyer** was a **human-operated Akira ransomware intrusion** enabled by reused access from a prior compromise. The attacker leveraged remote access, staged and refreshed tooling, impaired defenses, targeted credentials, moved laterally into administrative context, prepared data for theft, and then launched ransomware while inhibiting recovery.
+
+### Best Current Answer on Compromised Hosts
+
+Based strictly on the evidence provided:
+
+#### Confirmed involved / compromised host
+
+- **`as-srv`**
+
+#### Additional systems observed in relevant attack activity, but not fully confirmable as compromised from current evidence
+
+- `10.1.0.154`
+- `10.1.0.183`
+- `10.0.8.6`
+
+#### Final scope status
+
+- **Affected hosts: Not yet determined from available evidence**
+
+That is the most defensible host assessment from the evidence currently in scope.
+
+---
+
+## Appendix — KQL Queries Used
+
+### Reconnaissance / SMB Correlation Query
+
+**Evidence / Query Used**
+
+```kusto
+let suspicious =
+DeviceProcessEvents
+| where TimeGenerated between (datetime(2026-01-27 20:00:00) .. datetime(2026-01-27 23:00:00))
+| where ProcessCommandLine has_any ("net view", "net use", "\\\\")
+   or InitiatingProcessCommandLine has_any ("net view", "net use", "\\\\")
+| project DeviceName, SuspiciousTime=Timestamp, ProcessCommandLine, InitiatingProcessCommandLine;
+DeviceNetworkEvents
+| where RemotePort == 445
+| where RemoteIPType == "Private"
+| join kind=inner suspicious on DeviceName
+| where Timestamp between (SuspiciousTime - 5m .. SuspiciousTime + 5m)
+| project Timestamp, DeviceName, RemoteIP, ProcessCommandLine, InitiatingProcessCommandLine
+| distinct RemoteIP
+```
+
+### Additional Queries
+
+Additional KQL used in the broader investigation was **not explicitly provided in the available evidence**.
