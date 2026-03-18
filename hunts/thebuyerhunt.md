@@ -573,4 +573,763 @@ DeviceNetworkEvents
 
 ### Additional Queries
 
-Additional KQL used in the broader investigation was **not explicitly provided in the available evidence**.
+#### Cloud-endpoint.net, Remote Session, and AS-PC2 Focused Queries
+
+```kusto
+// Q1 - Find all cloud-endpoint.net domains on AS-PC2 on the incident day
+DeviceNetworkEvents
+| where DeviceName =~ "AS-PC2"
+| where Timestamp between (datetime(2026-01-27 00:00:00) .. datetime(2026-01-27 23:59:59))
+| where RemoteUrl has "cloud-endpoint.net"
+| project Timestamp, DeviceName, InitiatingProcessFileName, InitiatingProcessCommandLine, RemoteUrl, RemoteIP
+| order by Timestamp asc
+
+// Q2 - Find remote-session-related process activity on AS-PC2 on the incident day
+DeviceProcessEvents
+| where DeviceName =~ "AS-PC2"
+| where Timestamp between (datetime(2026-01-27 00:00:00) .. datetime(2026-01-27 23:59:59))
+| where IsInitiatingProcessRemoteSession == true
+| project Timestamp, FileName, InitiatingProcessFileName, InitiatingProcessCommandLine,
+          InitiatingProcessRemoteSessionDeviceName, InitiatingProcessRemoteSessionIP
+| order by Timestamp asc
+
+// Q3 - Focus on the core ransomware execution window on AS-PC2
+// This matches the observed cluster of activity around 4:03 PM through 4:11 PM
+DeviceNetworkEvents
+| where DeviceName =~ "AS-PC2"
+| where Timestamp between (datetime(2026-01-27 16:03:00) .. datetime(2026-01-27 16:12:00))
+| project Timestamp, InitiatingProcessFileName, InitiatingProcessCommandLine, RemoteUrl, RemoteIP
+| order by Timestamp asc
+
+// Q4 - Pivot specifically on wsync.exe during the incident day
+// wsync.exe is shown on AS-PC2 at 4:07 PM and as malicious at 4:11 PM
+DeviceNetworkEvents
+| where DeviceName =~ "AS-PC2"
+| where Timestamp between (datetime(2026-01-27 00:00:00) .. datetime(2026-01-27 23:59:59))
+| where InitiatingProcessFileName =~ "wsync.exe"
+| project Timestamp, InitiatingProcessCommandLine, RemoteUrl, RemoteIP
+| order by Timestamp asc
+
+// Q5 - Build a clean domain list seen from AS-PC2 on Jan 27
+DeviceNetworkEvents
+| where DeviceName =~ "AS-PC2"
+| where Timestamp between (datetime(2026-01-27 00:00:00) .. datetime(2026-01-27 23:59:59))
+| summarize count() by RemoteUrl
+| where isnotempty(RemoteUrl)
+| order by count_ desc
+```
+
+#### AnyDesk, Internal Relay, and Ransomware Window Queries
+
+```kusto
+// 1) Find every AnyDesk process event across all incident devices on the incident day
+DeviceProcessEvents
+| where Timestamp between (datetime(2026-01-27 00:00:00) .. datetime(2026-01-27 23:59:59))
+| where FileName =~ "AnyDesk.exe"
+| project Timestamp, DeviceName, FileName, ProcessCommandLine, InitiatingProcessFileName, InitiatingProcessCommandLine,
+          IsInitiatingProcessRemoteSession, InitiatingProcessRemoteSessionDeviceName, InitiatingProcessRemoteSessionIP
+| order by Timestamp asc
+
+// 2) Find network connections made by AnyDesk.exe across all devices
+DeviceNetworkEvents
+| where Timestamp between (datetime(2026-01-27 00:00:00) .. datetime(2026-01-27 23:59:59))
+| where InitiatingProcessFileName =~ "AnyDesk.exe"
+| project Timestamp, DeviceName, InitiatingProcessCommandLine, RemoteUrl, RemoteIP, RemotePort, Protocol
+| order by Timestamp asc
+
+// 3) Same hunt, but catch DNS lookups that may not show in the earlier broad domain list
+DeviceNetworkEvents
+| where Timestamp between (datetime(2026-01-27 00:00:00) .. datetime(2026-01-27 23:59:59))
+| where InitiatingProcessFileName =~ "AnyDesk.exe" or ActionType =~ "DnsQuery"
+| where RemoteUrl has "anydesk" or RemoteUrl has "relay" or RemoteUrl has "desk"
+| project Timestamp, DeviceName, ActionType, InitiatingProcessFileName, InitiatingProcessCommandLine, RemoteUrl, RemoteIP
+| order by Timestamp asc
+
+// 4) Pivot on the suspicious internal relay IP from the incident
+DeviceNetworkEvents
+| where Timestamp between (datetime(2026-01-27 00:00:00) .. datetime(2026-01-27 23:59:59))
+| where RemoteIP == "10.0.8.8" or LocalIP == "10.0.8.8"
+| project Timestamp, DeviceName, InitiatingProcessFileName, InitiatingProcessCommandLine, LocalIP, RemoteIP, RemoteUrl, RemotePort
+| order by Timestamp asc
+
+// 5) Pivot on the other suspicious internal IPs shown in the incident evidence
+DeviceNetworkEvents
+| where Timestamp between (datetime(2026-01-27 00:00:00) .. datetime(2026-01-27 23:59:59))
+| where RemoteIP in ("10.0.8.5","10.0.8.6","10.0.8.8","10.0.8.9") or LocalIP in ("10.0.8.5","10.0.8.6","10.0.8.8","10.0.8.9")
+| project Timestamp, DeviceName, InitiatingProcessFileName, InitiatingProcessCommandLine, LocalIP, RemoteIP, RemoteUrl, RemotePort
+| order by Timestamp asc
+
+// 7) Broad all-device domain inventory during the exact ransomware window
+let startTime = datetime(2026-01-27 16:05:00);
+let endTime   = datetime(2026-01-27 16:12:00);
+DeviceNetworkEvents
+| where Timestamp between (startTime .. endTime)
+| where isnotempty(RemoteUrl)
+| summarize count() by DeviceName, InitiatingProcessFileName, RemoteUrl
+| order by count_ desc
+```
+
+#### Evasion, Registry, and Credential-Access Queries
+
+```kusto
+// Q9 + Q10: Find the exact evasion script file and its SHA256 on AS-PC2
+DeviceFileEvents
+| where Timestamp between (datetime(2026-01-27 00:00:00) .. datetime(2026-01-27 23:59:59))
+| where DeviceName =~ "AS-PC2"
+| where FileName endswith ".bat" or FolderPath has @"\ProgramData"
+| project Timestamp, DeviceName, ActionType, FileName, FolderPath, SHA256, InitiatingProcessFileName, InitiatingProcessCommandLine
+| order by Timestamp asc
+
+// Q9 focused: Look specifically for kill.bat / ProgramData script creation or execution context
+union DeviceFileEvents, DeviceProcessEvents
+| where Timestamp between (datetime(2026-01-27 00:00:00) .. datetime(2026-01-27 23:59:59))
+| where DeviceName =~ "AS-PC2"
+| where FileName =~ "kill.bat"
+   or ProcessCommandLine has "kill.bat"
+   or InitiatingProcessCommandLine has "kill.bat"
+   or FolderPath has @"\ProgramData"
+| project Timestamp, DeviceName, FileName, FolderPath, SHA256, ProcessCommandLine, InitiatingProcessFileName, InitiatingProcessCommandLine
+| order by Timestamp asc
+
+// Q11 focused: only Defender disable-style values
+DeviceRegistryEvents
+| where Timestamp between (datetime(2026-01-27 00:00:00) .. datetime(2026-01-27 23:59:59))
+| where DeviceName =~ "AS-PC2"
+| where RegistryKey has @"SOFTWARE\Policies\Microsoft\Windows Defender"
+   or RegistryKey has @"SOFTWARE\Microsoft\Windows Defender"
+| where RegistryValueName startswith "Disable"
+| project Timestamp, RegistryKey, RegistryValueName, RegistryValueData, InitiatingProcessFileName, InitiatingProcessCommandLine
+| order by Timestamp asc
+
+// Q12 focused: get the exact UTC time for the accepted registry modification
+DeviceRegistryEvents
+| where Timestamp between (datetime(2026-01-27 00:00:00) .. datetime(2026-01-27 23:59:59))
+| where DeviceName =~ "AS-PC2"
+| where RegistryKey has @"Windows Defender"
+| project Timestamp, RegistryKey, RegistryValueName, RegistryValueData, InitiatingProcessFileName, InitiatingProcessCommandLine
+| order by Timestamp asc
+
+// Q13 - Find process enumeration commands on AS-PC2 during the credential-access window
+DeviceProcessEvents
+| where Timestamp between (datetime(2026-01-27 21:00:00) .. datetime(2026-01-27 22:00:00))
+| where DeviceName =~ "AS-PC2"
+| where ProcessCommandLine has_any ("tasklist", "wmic process", "Get-Process", "process list", "rundll32", "comsvcs", "lsass")
+   or InitiatingProcessCommandLine has_any ("tasklist", "wmic process", "Get-Process", "process list", "rundll32", "comsvcs", "lsass")
+| project Timestamp, FileName, ProcessCommandLine, InitiatingProcessFileName, InitiatingProcessCommandLine
+| order by Timestamp asc
+
+// Q13 backup - look specifically at process discovery around suspicious cmd/powershell/wmic activity
+DeviceProcessEvents
+| where Timestamp between (datetime(2026-01-27 21:00:00) .. datetime(2026-01-27 22:00:00))
+| where DeviceName =~ "AS-PC2"
+| where FileName in~ ("cmd.exe","powershell.exe","wmic.exe","tasklist.exe","rundll32.exe")
+| project Timestamp, FileName, ProcessCommandLine, InitiatingProcessFileName, InitiatingProcessCommandLine
+| order by Timestamp asc
+
+// Q14 backup - look for LSASS / credential-theft-adjacent process and pipe clues
+union DeviceProcessEvents, DeviceEvents
+| where Timestamp between (datetime(2026-01-27 21:00:00) .. datetime(2026-01-27 22:00:00))
+| where DeviceName =~ "AS-PC2"
+| where ProcessCommandLine has_any ("lsass", "comsvcs.dll", "sekurlsa", "procdump", "rundll32")
+   or InitiatingProcessCommandLine has_any ("lsass", "comsvcs.dll", "sekurlsa", "procdump", "rundll32")
+   or AdditionalFields has @"\pipe"
+| project Timestamp, FileName, ProcessCommandLine, InitiatingProcessFileName, InitiatingProcessCommandLine, ActionType, AdditionalFields
+| order by Timestamp asc
+
+// Q13 - catch WMIC/process discovery commands on AS-PC2
+DeviceProcessEvents
+| where Timestamp between (datetime(2026-01-27 21:05:00) .. datetime(2026-01-27 21:20:00))
+| where DeviceName =~ "AS-PC2"
+| where FileName in~ ("wmic.exe","cmd.exe","tasklist.exe","findstr.exe")
+   or ProcessCommandLine has "wmic"
+   or InitiatingProcessCommandLine has "wmic"
+| project Timestamp, FileName, ProcessCommandLine, InitiatingProcessFileName, InitiatingProcessCommandLine
+| order by Timestamp asc
+
+// Q13 - all children of wsync.exe in the credential-access window
+DeviceProcessEvents
+| where Timestamp between (datetime(2026-01-27 21:05:00) .. datetime(2026-01-27 21:20:00))
+| where DeviceName =~ "AS-PC2"
+| where InitiatingProcessFileName =~ "wsync.exe"
+| project Timestamp, FileName, ProcessCommandLine, InitiatingProcessFileName, InitiatingProcessCommandLine
+| order by Timestamp asc
+```
+
+#### Named Pipe, LSASS, and DeviceEvents Deep-Dive Queries
+
+```kusto
+// Q14 - broader named-pipe hunt across AS-PC2 using multiple likely fields
+union isfuzzy=true
+(
+    DeviceEvents
+    | project Timestamp, DeviceName, ActionType, FileName, InitiatingProcessFileName, InitiatingProcessCommandLine, AdditionalFields
+),
+(
+    DeviceProcessEvents
+    | extend AdditionalFields=""
+    | project Timestamp, DeviceName, ActionType="", FileName, InitiatingProcessFileName, InitiatingProcessCommandLine, AdditionalFields
+),
+(
+    DeviceNetworkEvents
+    | extend FileName=InitiatingProcessFileName, InitiatingProcessFileName=InitiatingProcessFileName, InitiatingProcessCommandLine=InitiatingProcessCommandLine, AdditionalFields=strcat(RemoteUrl, " ", RemoteIP, " ", tostring(RemotePort))
+    | project Timestamp, DeviceName, ActionType, FileName, InitiatingProcessFileName, InitiatingProcessCommandLine, AdditionalFields)
+| where Timestamp between (datetime(2026-01-27 21:05:00) .. datetime(2026-01-27 21:25:00))
+| where DeviceName =~ "AS-PC2"
+| where AdditionalFields_string contains "pipe"
+   or InitiatingProcessCommandLine contains "pipe"
+| order by Timestamp asc
+
+// Q14 - direct hunt for common credential-theft named pipe notation
+DeviceEvents
+| where Timestamp between (datetime(2026-01-27 21:05:00) .. datetime(2026-01-27 21:25:00))
+| where DeviceName =~ "AS-PC2"
+| where tostring(AdditionalFields) has_any ("\\\\.\\pipe\\", "\\Device\\NamedPipe\\", "\\pipe\\")
+| project Timestamp, ActionType, FileName, InitiatingProcessFileName, InitiatingProcessCommandLine, AdditionalFields
+| order by Timestamp asc
+
+DeviceProcessEvents
+| where Timestamp between (datetime(2026-01-27 21:05:00) .. datetime(2026-01-27 21:25:00))
+| where DeviceName =~ "AS-PC2"
+| where ProcessCommandLine has_any ("lsass", "comsvcs.dll", "rundll32", "procdump", "sekurlsa")
+   or InitiatingProcessCommandLine has_any ("lsass", "comsvcs.dll", "rundll32", "procdump", "sekurlsa")
+| project Timestamp, FileName, ProcessCommandLine, InitiatingProcessFileName, InitiatingProcessCommandLine
+| order by Timestamp asc
+
+DeviceEvents
+| where Timestamp between (datetime(2026-01-27 21:05:00) .. datetime(2026-01-27 21:25:00))
+| where DeviceName =~ "AS-PC2"
+| where ActionType in ("ProcessAccessed","CredentialAccessed","LsassAccessed","NamedPipeEvent")
+| project Timestamp, ActionType, FileName, InitiatingProcessFileName, InitiatingProcessCommandLine, AdditionalFields
+| order by Timestamp asc
+
+// THIS IS THE MOST IMPORTANT ONE
+DeviceEvents
+| where Timestamp between (datetime(2026-01-27 21:05:00) .. datetime(2026-01-27 21:25:00))
+| where DeviceName =~ "AS-PC2"
+| where AdditionalFields contains "lsass"
+   or AdditionalFields contains "pipe"
+| project Timestamp, ActionType, FileName, InitiatingProcessFileName, InitiatingProcessCommandLine, AdditionalFields
+| order by Timestamp asc
+
+DeviceEvents
+| where Timestamp between (datetime(2026-01-27 21:12:00) .. datetime(2026-01-27 21:14:00))
+| where DeviceName =~ "AS-PC2"
+| where ActionType == "NamedPipeEvent"
+| project Timestamp, FileName, InitiatingProcessFileName, InitiatingProcessCommandLine, AdditionalFields
+| order by Timestamp asc
+
+DeviceProcessEvents
+| where Timestamp between (datetime(2026-01-27 21:05:00) .. datetime(2026-01-27 21:25:00))
+| where DeviceName =~ "AS-PC2"
+| where ProcessCommandLine has_any ("comsvcs", "rundll32", "lsass", "procdump")
+| project Timestamp, FileName, ProcessCommandLine, InitiatingProcessFileName, InitiatingProcessCommandLine, AdditionalFields
+| order by Timestamp asc
+
+DeviceEvents
+| where Timestamp between (datetime(2026-01-27 21:12:00) .. datetime(2026-01-27 21:14:00))
+| where DeviceName =~ "AS-PC2"
+| where ActionType == "NamedPipeEvent"
+| extend PipeName = tostring(parse_json(AdditionalFields).PipeName)
+| extend NamedPipeEnd = tostring(parse_json(AdditionalFields).NamedPipeEnd)
+| extend FileOperation = tostring(parse_json(AdditionalFields).FileOperation)
+| project Timestamp, FileName, InitiatingProcessFileName, InitiatingProcessCommandLine, PipeName, NamedPipeEnd, FileOperation
+| order by Timestamp asc
+
+DeviceEvents
+| where Timestamp between (datetime(2026-01-27 21:10:00) .. datetime(2026-01-27 21:25:00))
+| where DeviceName =~ "AS-PC2"
+| where ActionType == "NamedPipeEvent"
+| extend PipeName = tostring(parse_json(AdditionalFields).PipeName)
+| extend NamedPipeEnd = tostring(parse_json(AdditionalFields).NamedPipeEnd)
+| extend FileOperation = tostring(parse_json(AdditionalFields).FileOperation)
+| project Timestamp, FileName, InitiatingProcessFileName, InitiatingProcessCommandLine, PipeName, NamedPipeEnd, FileOperation
+| where isnotempty(PipeName)
+| order by Timestamp asc
+
+DeviceEvents
+| where Timestamp between (datetime(2026-01-27 21:05:00) .. datetime(2026-01-27 21:25:00))
+| where DeviceName =~ "AS-PC2"
+| where AdditionalFields has @"pipe"
+| project Timestamp, ActionType, FileName, InitiatingProcessFileName, InitiatingProcessCommandLine, AdditionalFields
+| order by Timestamp asc
+
+DeviceProcessEvents
+| where Timestamp between (datetime(2026-01-27 21:05:00) .. datetime(2026-01-27 21:25:00))
+| where DeviceName =~ "AS-PC2"
+| where ProcessCommandLine has @"pipe"
+| project Timestamp, FileName, ProcessCommandLine, InitiatingProcessFileName
+| order by Timestamp asc
+
+DeviceEvents
+| where Timestamp between (datetime(2026-01-27 21:12:00) .. datetime(2026-01-27 21:14:00))
+| where DeviceName =~ "AS-PC2"
+| where ActionType == "NamedPipeEvent"
+| extend PipeName = tostring(parse_json(AdditionalFields).PipeName)
+| where isnotempty(PipeName)
+| project PipeName
+| distinct PipeName
+
+DeviceEvents
+| where Timestamp between (datetime(2026-01-27 21:10:00) .. datetime(2026-01-27 21:25:00))
+| where DeviceName =~ "AS-PC2"
+| where ActionType == "NamedPipeEvent"
+| extend PipeName = tostring(parse_json(AdditionalFields).PipeName)
+| where isnotempty(PipeName)
+| project Timestamp, FileName, PipeName
+| order by Timestamp asc
+| distinct PipeName
+
+DeviceEvents
+| where Timestamp between (datetime(2026-01-27 21:00:00) .. datetime(2026-01-27 21:30:00))
+| where ActionType == "NamedPipeEvent"
+| extend PipeName = tostring(parse_json(AdditionalFields).PipeName)
+| where isnotempty(PipeName)
+| project Timestamp, DeviceName, FileName, InitiatingProcessFileName, InitiatingProcessCommandLine, PipeName
+| order by Timestamp asc
+
+DeviceEvents
+| where Timestamp between (datetime(2026-01-27 21:00:00) .. datetime(2026-01-27 21:30:00))
+| where ActionType == "NamedPipeEvent"
+| extend PipeName = tostring(parse_json(AdditionalFields).PipeName)
+| where isnotempty(PipeName)
+| where InitiatingProcessFileName in~ ("wsync.exe","cmd.exe","powershell.exe","tasklist.exe","findstr.exe","AnyDesk.exe")
+   or FileName in~ ("wsync.exe","cmd.exe","powershell.exe","tasklist.exe","findstr.exe","AnyDesk.exe")
+| project Timestamp, DeviceName, FileName, InitiatingProcessFileName, InitiatingProcessCommandLine, PipeName
+| order by Timestamp asc
+
+DeviceEvents
+| where Timestamp between (datetime(2026-01-27 21:00:00) .. datetime(2026-01-27 21:30:00))
+| where ActionType == "NamedPipeEvent"
+| extend PipeName = tostring(parse_json(AdditionalFields).PipeName)
+| where isnotempty(PipeName)
+| where InitiatingProcessFileName in~ ("wsync.exe","cmd.exe","powershell.exe","tasklist.exe","findstr.exe","AnyDesk.exe")
+   or FileName in~ ("wsync.exe","cmd.exe","powershell.exe","tasklist.exe","findstr.exe","AnyDesk.exe")
+| project Timestamp, DeviceName, FileName, InitiatingProcessFileName, InitiatingProcessCommandLine, PipeName
+| order by Timestamp asc
+
+union DeviceProcessEvents, DeviceEvents
+| where Timestamp between (datetime(2026-01-27 21:00:00) .. datetime(2026-01-27 21:30:00))
+| where ProcessCommandLine has "lsass"
+   or InitiatingProcessCommandLine has "lsass"
+   or AdditionalFields has "PipeName"
+| project Timestamp, DeviceName, FileName, ProcessCommandLine, InitiatingProcessFileName, InitiatingProcessCommandLine, ActionType, AdditionalFields
+| order by Timestamp asc
+```
+
+#### SecurityEvent, Search, and Broad Workspace Hunting Queries
+
+```kusto
+SecurityEvent
+| where TimeGenerated between (datetime(2026-01-27 20:00:00) .. datetime(2026-01-27 23:00:00))
+| where EventID in (4624, 4625)
+| project TimeGenerated, IpAddress, TargetUserName, LogonType
+| order by TimeGenerated asc
+
+SecurityEvent
+| where TimeGenerated between (datetime(2026-01-27 20:00:00) .. datetime(2026-01-27 23:00:00))
+| project TimeGenerated, NewProcessName, CommandLine, ParentProcessName, SubjectUserName
+| order by TimeGenerated asc
+
+SecurityEvent
+| where TimeGenerated between (datetime(2026-01-27 20:00:00) .. datetime(2026-01-27 23:00:00))
+| summarize count() by Computer
+
+SecurityEvent
+| where TimeGenerated between (datetime(2026-01-27 20:00:00) .. datetime(2026-01-27 23:00:00))
+| project TimeGenerated, Computer, NewProcessName, CommandLine, ParentProcessName, SubjectUserName
+| order by TimeGenerated asc
+
+SecurityEvent
+| where TimeGenerated between (datetime(2026-01-27 20:00:00) .. datetime(2026-01-27 23:00:00))
+| where EventID == 4624
+| project TimeGenerated, Computer, IpAddress, TargetUserName, LogonType
+| order by TimeGenerated asc
+
+search *
+| where TimeGenerated between (datetime(2026-01-27 20:00:00) .. datetime(2026-01-27 23:00:00))
+| extend row = pack_all()
+| extend rowText = tostring(row)
+| where rowText matches regex @"\b\d{1,3}(\.\d{1,3}){3}\b"
+| where rowText !contains "127.0.0.1"
+| where rowText !contains "10."
+| where rowText !contains "192.168"
+| where rowText !contains "172."
+| project TimeGenerated, $table, rowText
+| order by TimeGenerated asc
+
+search "AnyDesk" or "C:\Users\Public\" or "relay"
+| where TimeGenerated between (datetime(2026-01-27 20:00:00) .. datetime(2026-01-27 23:00:00))
+| extend row = pack_all()
+| extend rowText = tostring(row)
+| where rowText matches regex @"\b\d{1,3}(\.\d{1,3}){3}\b"
+| project TimeGenerated, $table, rowText
+| order by TimeGenerated asc
+
+search "AnyDesk" or "C:\Users\Public\" or "relay"
+| where TimeGenerated between (datetime(2026-01-27 20:00:00) .. datetime(2026-01-27 23:00:00))
+| extend row = pack_all()
+| extend rowText = tostring(row)
+| extend ips = extract_all(@"(\b\d{1,3}(?:\.\d{1,3}){3}\b)", rowText)
+| mv-expand ip = ips
+| where ip !startswith "10."
+| where ip !startswith "127."
+| where ip !startswith "192.168."
+| where not(ip matches regex @"^172\.(1[6-9]|2[0-9]|3[0-1])\.")
+| project TimeGenerated, $table, ip, rowText
+| order by TimeGenerated asc
+
+search *
+| where TimeGenerated between (datetime(2026-01-27 20:45:00) .. datetime(2026-01-27 22:30:00))
+| where tostring(pack_all()) has_any ("Public", ".exe", "beacon", "update", "client")
+| extend row = pack_all()
+| project TimeGenerated, $table, row
+| order by TimeGenerated asc
+
+search *
+| where TimeGenerated between (datetime(2026-01-27 20:45:00) .. datetime(2026-01-27 22:30:00))
+| where tostring(pack_all()) has_any (".exe", "created", "write")
+| extend row = pack_all()
+| project TimeGenerated, $table, row
+| order by TimeGenerated asc
+
+search *
+| where TimeGenerated between (datetime(2026-01-27 20:45:00) .. datetime(2026-01-27 22:30:00))
+| where tostring(pack_all()) has ".exe"
+| extend row = pack_all()
+| extend rowText = tostring(row)
+| where rowText has "Public"
+| project TimeGenerated, rowText
+| order by TimeGenerated asc
+
+search *
+| where TimeGenerated between (datetime(2026-01-27 20:45:00) .. datetime(2026-01-27 22:30:00))
+| extend row = pack_all()
+| extend rowText = tostring(row)
+| where rowText has "scan.exe" or rowText has "service.exe"
+| project TimeGenerated, $table, rowText
+| order by TimeGenerated asc
+
+search *
+| where TimeGenerated between (datetime(2026-01-27 20:45:00) .. datetime(2026-01-27 22:30:00))
+| extend row = pack_all()
+| extend rowText = tostring(row)
+| where rowText has "wsync.exe"
+| project TimeGenerated, rowText
+| order by TimeGenerated asc
+
+search *
+| where TimeGenerated between (datetime(2026-01-27 20:30:00) .. datetime(2026-01-27 21:10:00))
+| extend row = pack_all()
+| extend rowText = tostring(row)
+| where rowText has "wsync.exe"
+| project TimeGenerated, rowText
+| order by TimeGenerated asc
+
+search "wsync.exe"
+| where TimeGenerated < datetime(2026-01-27 21:05:00)
+| extend row = pack_all()
+| project TimeGenerated, row
+| order by TimeGenerated asc
+
+search *
+| where TimeGenerated between (datetime(2026-01-27 21:05:00) .. datetime(2026-01-27 22:00:00))
+| extend row = pack_all()
+| extend rowText = tostring(row)
+| where rowText has_any ("scan", "ip", "net", "port", "share", "enum")
+| project TimeGenerated, rowText
+| order by TimeGenerated asc
+
+search *
+| where TimeGenerated between (datetime(2026-01-27 21:05:00) .. datetime(2026-01-27 22:00:00))
+| extend row = pack_all()
+| extend rowText = tostring(row)
+| where rowText has ".exe"
+| where rowText has_any ("scan", "port", "ip", "connect", "enum")
+| project TimeGenerated, rowText
+| order by TimeGenerated asc
+
+search "scan.exe"
+| where TimeGenerated between (datetime(2026-01-27 21:05:00) .. datetime(2026-01-27 22:00:00))
+| extend row = pack_all()
+| extend rowText = tostring(row)
+| project TimeGenerated, rowText
+| order by TimeGenerated asc
+
+search @"\"
+| where TimeGenerated between (datetime(2026-01-27 21:05:00) .. datetime(2026-01-27 22:00:00))
+| extend row = pack_all()
+| extend rowText = tostring(row)
+| where rowText matches regex @"\\\d+\.\d+\.\d+\.\d+\"
+| project TimeGenerated, rowText
+| order by TimeGenerated asc
+
+search "scan.exe"
+| where TimeGenerated between (datetime(2026-01-27 21:00:00) .. datetime(2026-01-27 22:00:00))
+| extend row = pack_all()
+| extend rowText = tostring(row)
+| where rowText has "10."
+| project TimeGenerated, rowText
+| order by TimeGenerated asc
+
+search "scan.exe"
+| where TimeGenerated between (datetime(2026-01-27 20:15:00) .. datetime(2026-01-27 21:30:00))
+| project TimeGenerated, tostring(pack_all())
+| order by TimeGenerated asc
+
+search *
+| where TimeGenerated between (datetime(2026-01-27 20:00:00) .. datetime(2026-01-27 23:00:00))
+| extend row = pack_all()
+| extend rowText = tostring(row)
+| where rowText has_any ("\\", "IPC$", "ADMIN$", "C$", "Shares", "share")
+| extend ips = extract_all(@"(\b10\.\d{1,3}\.\d{1,3}\.\d{1,3}\b)", rowText)
+| mv-expand ip = ips
+| extend ip = tostring(ip)
+| summarize by ip
+| order by ip asc
+
+search *
+| where TimeGenerated between (datetime(2026-01-27 20:00:00) .. datetime(2026-01-27 23:00:00))
+| extend row = pack_all()
+| extend rowText = tostring(row)
+| where rowText has_any ("\\", "IPC$", "ADMIN$", "C$", "Shares", "share")
+| extend ips = extract_all(@"(\b10\.\d{1,3}\.\d{1,3}\.\d{1,3}\b)", rowText)
+| mv-expand ip = ips
+| extend ip = tostring(ip)
+| summarize by ip
+| order by ip asc
+```
+
+#### SecurityAlert, Network, Logon, Download, Exfiltration, and Impact Queries
+
+```kusto
+SecurityAlert
+| where TimeGenerated between (datetime(2026-01-27 20:00:00) .. datetime(2026-01-27 22:00:00))
+| where DisplayName in ("Horizontal port scan initiated", "Potential human-operated malicious activity")
+| project TimeGenerated, DisplayName, Entities, ExtendedProperties
+
+SecurityAlert
+| where TimeGenerated between (datetime(2026-01-27 20:00:00) .. datetime(2026-01-27 22:00:00))
+| where DisplayName in ("Horizontal port scan initiated", "Potential human-operated malicious activity")
+| extend entityText = strcat(tostring(Entities), " ", tostring(ExtendedProperties))
+| extend ips = extract_all(@"(""Address"":""(10\.\d{1,3}\.\d{1,3}\.\d{1,3})"")", entityText)
+| project TimeGenerated, DisplayName, entityText, ips
+
+SecurityAlert
+| where TimeGenerated between (datetime(2026-01-27 20:00:00) .. datetime(2026-01-27 22:00:00))
+| where DisplayName in ("Horizontal port scan initiated", "Potential human-operated malicious activity")
+| extend entityText = strcat(tostring(Entities), " ", tostring(ExtendedProperties))
+| extend ips = extract_all(@"Address"":""(10\.\d{1,3}\.\d{1,3}\.\d{1,3})", entityText)
+| project TimeGenerated, DisplayName, ips, entityText
+
+DeviceNetworkEvents
+| where TimeGenerated between (datetime(2026-01-27 20:00:00) .. datetime(2026-01-27 22:00:00))
+
+search "10." or "share" or "IPC$" or "ADMIN$" or "scan.exe"
+| where TimeGenerated between (datetime(2026-01-27 20:00:00) .. datetime(2026-01-27 23:00:00))
+| extend row = pack_all()
+| extend rowText = tostring(row)
+| project TimeGenerated, $table, rowText
+| order by TimeGenerated asc
+DeviceNetworkEvents
+| where TimeGenerated between (datetime(2026-01-27 20:00:00) .. datetime(2026-01-27 23:00:00))
+| where InitiatingProcessFileName contains "scan"
+
+DeviceNetworkEvents
+| where TimeGenerated between (datetime(2026-01-27 20:00:00) .. datetime(2026-01-27 23:00:00))
+| where InitiatingProcessFileName contains "scan"
+| where ActionType contains "success"
+
+DeviceNetworkEvents
+| where TimeGenerated between (datetime(2026-01-27 20:00:00) .. datetime(2026-01-27 23:00:00))
+| where InitiatingProcessFileName contains "scan"
+| summarize count() by RemoteIP
+| order by count_ desc
+
+DeviceNetworkEvents
+| where TimeGenerated between (datetime(2026-01-27 20:00:00) .. datetime(2026-01-27 23:00:00))
+| where RemoteIP startswith "10."
+| summarize count() by RemoteIP, InitiatingProcessFileName
+| order by count_ desc
+
+DeviceProcessEvents
+| where TimeGenerated between (datetime(2026-01-27 20:00:00) .. datetime(2026-01-27 23:00:00))
+| where ProcessCommandLine has_any ("net view", "net use", "\\")
+| project Timestamp, DeviceName, FileName, ProcessCommandLine, InitiatingProcessAccountName
+| order by Timestamp desc
+
+let suspicious =
+DeviceProcessEvents
+| where TimeGenerated between (datetime(2026-01-27 20:00:00) .. datetime(2026-01-27 23:00:00))
+| where ProcessCommandLine has_any ("net view", "net use", "\\")
+   or InitiatingProcessCommandLine has_any ("net view", "net use", "\\")
+| project DeviceName, SuspiciousTime=Timestamp, ProcessCommandLine, InitiatingProcessCommandLine;
+DeviceNetworkEvents
+| where RemotePort == 445
+| where RemoteIPType == "Private"
+| join kind=inner suspicious on DeviceName
+| where Timestamp between (SuspiciousTime - 5m .. SuspiciousTime + 5m)
+| project Timestamp, DeviceName, RemoteIP, ProcessCommandLine, InitiatingProcessCommandLine
+| distinct RemoteIP
+
+DeviceLogonEvents
+| where TimeGenerated between (datetime(2026-01-27 20:00:00) .. datetime(2026-01-27 23:30:00))
+| where DeviceName =~ "AS-SRV"
+| where LogonType in ("Network", "RemoteInteractive")
+| project TimeGenerated, DeviceName, AccountName, InitiatingProcessFileName, RemoteIP
+| order by TimeGenerated asc
+
+DeviceProcessEvents
+| where TimeGenerated between (datetime(2026-01-27 20:00:00) .. datetime(2026-01-27 23:30:00))
+| where ProcessCommandLine has_any ("http", "https", "download", "bitsadmin", "certutil", "Invoke-WebRequest", "iwr", "curl", "mshta")
+| project Timestamp, DeviceName, FileName, ProcessCommandLine, InitiatingProcessAccountName
+| order by Timestamp asc
+
+DeviceProcessEvents
+| where TimeGenerated between (datetime(2026-01-27 20:00:00) .. datetime(2026-01-27 23:30:00))
+| where FileName in~ ("certutil.exe", "bitsadmin.exe", "powershell.exe", "curl.exe", "mshta.exe", "rundll32.exe")
+| where ProcessCommandLine has_any ("http", "https", "download", "urlcache", "transfer", "Invoke-WebRequest", "iwr")
+| project Timestamp, DeviceName, FileName, ProcessCommandLine
+| order by Timestamp asc
+
+DeviceLogonEvents
+| where TimeGenerated between (datetime(2026-01-27 20:00:00) .. datetime(2026-01-27 23:30:00))
+| where DeviceName =~ "AS-SRV"
+| where LogonType in ("Network", "RemoteInteractive")
+| project TimeGenerated, DeviceName, AccountName, InitiatingProcessFileName, RemoteIP
+| order by TimeGenerated asc
+
+DeviceLogonEvents
+| where TimeGenerated between (datetime(2026-01-27 20:00:00) .. datetime(2026-01-27 23:30:00))
+| where DeviceName =~ "AS-SRV"
+| where LogonType in ("Network", "RemoteInteractive")
+| project TimeGenerated, DeviceName, AccountName, InitiatingProcessFileName, RemoteIP
+| order by TimeGenerated asc
+
+DeviceProcessEvents
+| where TimeGenerated between (datetime(2026-01-27 20:00:00) .. datetime(2026-01-27 23:30:00))
+| where ProcessCommandLine has_any ("http", "https", "download")
+| where FileName in~ ("certutil.exe", "bitsadmin.exe", "mshta.exe", "powershell.exe")
+| project TimeGenerated, DeviceName, FileName, ProcessCommandLine
+| order by TimeGenerated asc
+
+DeviceProcessEvents
+| where TimeGenerated between (datetime(2026-01-27 20:00:00) .. datetime(2026-01-27 23:30:00))
+| where FileName =~ "powershell.exe"
+| where ProcessCommandLine has_any ("Download", "Invoke", "Web")
+| project TimeGenerated, ProcessCommandLine
+| order by TimeGenerated asc
+
+DeviceProcessEvents
+| where TimeGenerated between (datetime(2026-01-27 20:00:00) .. datetime(2026-01-27 23:59:00))
+| where ProcessCommandLine has_any (".zip", ".7z", ".rar")
+   or FileName in~ ("7z.exe", "rar.exe", "winrar.exe", "tar.exe")
+| project TimeGenerated, DeviceName, FileName, ProcessCommandLine, SHA256
+| order by TimeGenerated
+
+DeviceProcessEvents
+| where TimeGenerated between (datetime(2026-01-27 20:00:00) .. datetime(2026-01-27 23:59:00))
+| where ProcessCommandLine has_any (".zip", ".7z", ".rar")
+   or FileName contains "exfil_data.zip"
+| project TimeGenerated, FileName, ProcessCommandLine, SHA256
+| order by TimeGenerated asc
+
+DeviceProcessEvents
+| where TimeGenerated between (datetime(2026-01-27 20:00:00) .. datetime(2026-01-27 23:59:00))
+| where ProcessCommandLine has_any ("zip", "rar", "7z", "compress", "archive", "tar", "cab")
+| where ProcessCommandLine !contains "VMAgentLogs.zip" and ProcessCommandLine !contains "CHROME.7Z" and ProcessCommandLine !contains "ubuntu-keyring-2018-archive.gpg" and ProcessCommandLine !contains "plugins-core.tar.gz" and ProcessCommandLine !contains "apt-config"
+| project Timestamp, DeviceName, FileName, ProcessCommandLine
+| order by Timestamp desc
+
+DeviceProcessEvents
+| where ProcessCommandLine has_any ("zip", "rar", "7z", "Compress-Archive", "archive", "tar", "cab","st")
+| project Timestamp, DeviceName, FileName, ProcessCommandLine
+| order by Timestamp desc
+| distinct FileName
+
+DeviceFileEvents
+| where TimeGenerated between (datetime(2026-01-27 20:00:00) .. datetime(2026-01-27 23:30:00))
+| where ActionType == "FileCreated"
+| where FolderPath contains "exfil_data.zip"
+| project Timestamp, DeviceName, FileName, FolderPath, InitiatingProcessFileName
+| order by Timestamp desc
+
+DeviceFileEvents
+
+DeviceFileEvents
+| where TimeGenerated between (datetime(2026-01-27 20:00:00) .. datetime(2026-01-27 23:30:00))
+| where FileName == "exfil_data.zip"
+| project Timestamp, DeviceName, FolderPath, InitiatingProcessFileName, InitiatingProcessCommandLine,SHA1
+| order by Timestamp desc
+
+DeviceFileEvents
+| where TimeGenerated between (datetime(2026-01-27 20:00:00) .. datetime(2026-01-27 23:30:00))
+| where FileName == "st.exe"
+| project Timestamp, DeviceName, FileName, FolderPath, SHA1, SHA256, MD5
+| order by Timestamp desc
+
+DeviceProcessEvents
+| where TimeGenerated between (datetime(2026-01-27 20:00:00) .. datetime(2026-01-27 23:30:00))
+| project Timestamp, DeviceName, FileName, FolderPath, ProcessCommandLine
+| order by Timestamp desc
+
+DeviceProcessEvents
+| where TimeGenerated between (datetime(2026-01-27 20:00:00) .. datetime(2026-01-27 23:30:00))
+| where FolderPath !startswith "C:\Windows\System32"
+| project Timestamp, DeviceName, FileName, FolderPath, ProcessCommandLine
+| order by Timestamp desc
+| distinct FileName
+
+DeviceFileEvents
+| where TimeGenerated between (datetime(2026-01-27 20:00:00) .. datetime(2026-01-27 23:30:00))
+| where FileName contains "updater"
+| project Timestamp, DeviceName, FileName, FolderPath, SHA1, SHA256, MD5, InitiatingProcessCommandLine
+| order by Timestamp desc
+
+DeviceProcessEvents
+| where TimeGenerated between (datetime(2026-01-27 20:00:00) .. datetime(2026-01-27 23:30:00))
+| where ProcessCommandLine has_any ("vssadmin", "shadowcopy", "delete shadows", "wbadmin", "bcdedit")
+| project Timestamp, DeviceName, FileName, ProcessCommandLine, InitiatingProcessAccountName
+| order by Timestamp desc
+
+DeviceFileEvents
+| where TimeGenerated between (datetime(2026-01-27 20:00:00) .. datetime(2026-01-27 23:30:00))
+| where FileName has_any ("readme", "recover", "decrypt", "restore", "ransom", "help")
+| project Timestamp, DeviceName, FileName, FolderPath, ActionType, InitiatingProcessFileName, InitiatingProcessCommandLine
+| order by Timestamp desc
+
+DeviceFileEvents
+| where TimeGenerated between (datetime(2026-01-27 20:00:00) .. datetime(2026-01-27 23:30:00))
+| where ActionType == "FileCreated"
+| where InitiatingProcessFileName == "updater.exe"
+| where FileName has_any ("readme", "recover", "decrypt", "restore", "ransom", "help")
+| project Timestamp, DeviceName, FileName, FolderPath, InitiatingProcessFileName
+| order by Timestamp asc
+
+DeviceFileEvents
+| where TimeGenerated between (datetime(2026-01-27 20:00:00) .. datetime(2026-01-27 23:30:00))
+| where ActionType == "FileCreated"
+| where InitiatingProcessFileName == "updater.exe"
+| where FileName == "akira_readme.txt"
+| project Timestamp, DeviceName, FileName, FolderPath
+| order by Timestamp asc
+
+DeviceFileEvents
+| where TimeGenerated between (datetime(2026-01-27 20:00:00) .. datetime(2026-01-27 23:30:00))
+| where ActionType == "FileDeleted"
+| where FileName contains "updater"
+| order by Timestamp asc
+
+DeviceProcessEvents
+| where TimeGenerated between (datetime(2026-01-27 20:00:00) .. datetime(2026-01-27 23:59:00))
+| where FileName contains "ransom"
+| distinct DeviceName
+
+DeviceFileEvents
+| where TimeGenerated between (datetime(2026-01-27 20:00:00) .. datetime(2026-01-27 23:59:00))
+| where ActionType == "FileDeleted"
+| where FileName endswith ".bat"
+
+DeviceNetworkEvents | where Timestamp between (datetime(2026-01-27 20:00:00) .. datetime(2026-01-27 23:30:00)) | where RemoteIP in ("10.1.0.154","10.1.0.183","10.0.8.6") or LocalIP in ("10.1.0.154","10.1.0.183","10.0.8.6") | project Timestamp, DeviceName, LocalIP, RemoteIP, InitiatingProcessFileName, InitiatingProcessCommandLine | order by Timestamp asc | distinct DeviceName
+
+DeviceFileEvents | where Timestamp between (datetime(2026-01-27 20:00:00) .. datetime(2026-01-27 23:30:00)) | where FileName in ("updater","updater.exe","clean.bat","kill.bat","scan.exe","st.exe","wsync.exe","exfil_data.zip") | project Timestamp, DeviceName, ActionType, FileName, FolderPath, SHA256, InitiatingProcessFileName, InitiatingProcessCommandLine | order by Timestamp asc | distinct DeviceName
+```
