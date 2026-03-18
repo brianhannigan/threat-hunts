@@ -499,6 +499,115 @@ The batch file **`clean.bat`** indicates likely cleanup or anti-forensic activit
 
 Cleanup activity reduces forensic visibility and may hide the full extent of the intrusion. The unresolved host scope means containment and recovery would require further validation.
 
+## Executive Summary
+
+### Executive-Ready Summary
+
+This investigation identified a **human-operated Akira ransomware intrusion** in the Ashford Sterling Recruitment environment. The evidence indicates the attacker **returned using pre-staged access** established during the prior intrusion known as **The Broker**, then progressed through a structured ransomware attack chain: remote access reuse, tool transfer, defense evasion, credential-focused activity, reconnaissance, lateral movement, exfiltration staging, and ransomware deployment.
+
+Confirmed evidence ties the operation to **Akira**, including the ransom portal, victim ID, and encrypted file extension. The attacker leveraged **AnyDesk** for remote access, used **wsync.exe** as a beacon, performed reconnaissance with **scan.exe**, staged exfiltration with **st.exe**, and deployed ransomware via **updater**. The intrusion also included defense impairment through **kill.bat**, anti-spyware registry tampering, LSASS-oriented activity, and recovery inhibition using **`wmic shadowcopy delete`**.
+
+The scope of compromise is now confirmed to include **as-srv** and **as-pc2**.
+
+---
+
+## Section 12 — Anti-Forensics & Scope
+
+### Confirmed Findings
+
+| Item | Value |
+|---|---|
+| Cleanup Script | `clean.bat` |
+| Affected Hosts | `as-srv,as-pc2` |
+
+### Analysis
+
+The batch file **`clean.bat`** indicates likely cleanup or anti-forensic activity. In this case, the evidence confirms that the ransomware binary was deleted after execution using **`clean.bat`**.
+
+The scope of compromise is confirmed to include the following hosts:
+
+- **as-srv**
+- **as-pc2**
+
+This materially improves the incident scoping assessment. Earlier phases of the investigation established **as-srv** as a directly involved system through authentication, lateral movement, and administrative account activity. With final scope confirmation, **as-pc2** must also be included as a compromised host in the incident record.
+
+### Current Host Scope Assessment
+
+#### Confirmed compromised hosts
+
+- **`as-srv`**
+- **`as-pc2`**
+
+#### Related internal systems observed during the intrusion but not separately confirmed as compromised in the provided evidence
+
+- `10.1.0.154`
+- `10.1.0.183`
+- `10.0.8.6`
+
+### Why It Matters
+
+Cleanup activity reduces forensic visibility and can remove high-value artifacts such as the ransomware binary itself. Confirming the compromised host set as **as-srv** and **as-pc2** provides a defensible scope for reporting, containment, and recovery planning.
+
+---
+
+## Confidence / Limitations
+
+### Confirmed
+
+- Akira attribution
+- Negotiation portal, victim ID, encrypted extension
+- Infrastructure domains and listed IPs
+- AnyDesk involvement
+- `David.Mitchell` as compromised user
+- `C:\Users\Public\` as suspicious execution path
+- `wsync.exe` and both beacon hashes
+- `kill.bat` and its hash
+- Registry tampering of `DisableAntiSpyware`
+- LSASS-oriented command and named pipe artifact
+- `scan.exe`, its hash, and execution parameters
+- Network enumeration targets `10.1.0.154` and `10.1.0.183`
+- `as.srv.administrator` as lateral movement account
+- `bitsadmin.exe` and `Invoke-WebRequest` as transfer methods
+- `st.exe`, its hash, and `exfil_data.zip`
+- `updater`, its hash, ransomware staging via `powershell.exe`
+- `wmic shadowcopy delete`
+- `updater.exe` as ransom note origin
+- Encryption start time `22:18:33`
+- `clean.bat`
+- **Confirmed compromised hosts: `as-srv`, `as-pc2`**
+
+### Inferred from Timing / Sequence
+
+- The attacker reused pre-staged access from **The Broker**
+- LSASS-related activity likely supported the transition from `David.Mitchell` to `as.srv.administrator`
+- Beacon replacement indicates an update or refresh in C2 capability
+- Exfiltration staging likely supported double-extortion objectives
+
+### Not Confirmed from Available Evidence
+
+- Exact acquisition method for `as.srv.administrator`
+- Exact contents or full behavior of `kill.bat`
+- Final outbound exfiltration destination
+- Whether `10.1.0.154`, `10.1.0.183`, or `10.0.8.6` were themselves compromised hosts versus related systems observed in recon/auth telemetry
+
+---
+
+## Conclusion
+
+The available evidence supports a clear assessment: **The Buyer** was a **human-operated Akira ransomware intrusion** enabled by reused access from a prior compromise. The attacker leveraged remote access, staged and refreshed tooling, impaired defenses, targeted credentials, moved laterally into administrative context, prepared data for theft, and then launched ransomware while inhibiting recovery.
+
+### Confirmed Compromised Hosts
+
+- **`as-srv`**
+- **`as-pc2`**
+
+### Final Scope Status
+
+The confirmed host scope for this incident is:
+
+- **`as-srv,as-pc2`**
+
+This is the defensible affected-host answer for the final report.
 ---
 
 ## MITRE ATT&CK Mapping
