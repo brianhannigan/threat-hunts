@@ -2,7 +2,6 @@
   <img src="../assets/the_buyer_banner.svg" alt="SOC Investigation – The Buyer" width="100%" />
 </p>
 
-# Threat Hunt Report: The Buyer
 ![Status](https://img.shields.io/badge/Status-Completed-brightgreen)
 ![Platform](https://img.shields.io/badge/Platform-Microsoft%20Sentinel%20%2B%20MDE-blue)
 ![Focus](https://img.shields.io/badge/Focus-Akira%20Ransomware%20%7C%20Impact%20Reconstruction-purple)
